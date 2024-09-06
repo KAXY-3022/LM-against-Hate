@@ -1,0 +1,5 @@
+GPT2-medium
+BestRun(run_id='0', objective=1.4545097351074219, hyperparameters={'learning_rate': 3.800568576836524e-05, 'warmup_ratio': 0.10816909354342182, 'weight_decay': 0.050977894796868116}, run_summary=None)
+
+BART-large
+BestRun(run_id='5', objective=2.0491859912872314, hyperparameters={'learning_rate': 2.5574655007629766e-05, 'warmup_ratio': 0.1321825827978752, 'weight_decay': 0.09065495627977234}, run_summary=None)
