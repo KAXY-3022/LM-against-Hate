@@ -5,6 +5,11 @@ import numpy as np
 import pandas as pd
 from multiprocessing import Pool
 from datetime import datetime
+from typing import Optional
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
+from pathlib import Path
+
+from param import GPT2_params, BART_params
 
 
 def cleanup():
@@ -43,6 +48,53 @@ def detokenize(x):
     return x.replace(" .", ".").replace(" ,", ",").replace(" !", "!").replace(" ?", "?").replace(" )", ")").replace("( ", "(")  # noqa
 
 
+def model_selection(modeltype: str, modelname: Optional[str] ):
+    if modeltype == 'S2S':
+        params = BART_params
+    elif modeltype == 'Causal':
+        params = GPT2_params
+
+    if modelname:
+        params['model_name'] = modelname
+    
+    return params
+
+def load_model(modeltype: str, params: dict, config):
+    # Load base model from 
+    load_path = Path().resolve().joinpath(
+        params['save_dir'],
+        params['training_args'].output_dir,
+        params['model_name'])
+    print('Loading local model from: ', load_path)
+    if modeltype == 'Causal':
+        try:
+            model = AutoModelForCausalLM.from_pretrained(load_path, config=config)
+        except:
+            print('No local model found, downloading base model from hub')
+            model = AutoModelForCausalLM.from_pretrained(params['model_name'], config=config)
+            # Save base model for future use
+            save_path = Path().resolve().joinpath(
+                params['save_dir'], 
+                params['training_args'].output_dir,
+                params['model_name'])
+            print('Saving base model locally for future usage at: ', save_path)
+            model.save_pretrained(save_path)
+    elif modeltype == 'S2S':
+        try:
+            model = AutoModelForSeq2SeqLM.from_pretrained(load_path, config=config)
+        except:
+            print('No local model found, downloading base model from hub')
+            model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'], config=config)
+            # Save base model for future use
+            save_path = Path().resolve().joinpath(
+                params['save_dir'], 
+                params['training_args'].output_dir,
+                params['model_name'])
+            print('Saving base model locally for future usage at: ', save_path)
+            model.save_pretrained(save_path)
+
+    return model
+
 def get_model_path(root_dir, load_model_name, version):
     # construct the path to a given model by the model name and it's version (date_time when created)
     load_dir = os.path.join(root_dir, "models/")
@@ -70,3 +122,4 @@ def save_model(tokenizer, model, save_directory, model_name, save_option=True):
         model.save_pretrained(pt_save_directory)
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
+
