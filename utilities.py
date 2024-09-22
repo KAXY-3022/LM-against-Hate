@@ -124,7 +124,7 @@ def save_model(tokenizer, model, params, save_option=True):
     save_path = Path().resolve().joinpath(
         params['save_dir'],
         params['training_args'].output_dir,
-        params['model_name'] + get_datetime("%d,%m,%Y--%H,%M"))
+        params['model_name'] + '-' + get_datetime("%d,%m,%Y--%H,%M"))
 
     if save_option:
         tokenizer.save_pretrained(save_path)

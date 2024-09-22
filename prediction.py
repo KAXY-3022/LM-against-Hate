@@ -107,7 +107,7 @@ def post_processing(df, model_type):
     p.set_options(p.OPT.URL, p.OPT.EMOJI)
 
     # GPT
-    if model_type == "GPT":
+    if model_type == "GPT2":
         df = parallel_process(df, remove_prompt)
 
     # BART
