@@ -2,7 +2,7 @@ from transformers import TrainingArguments, Seq2SeqTrainingArguments
 from pathlib import Path
 
 # selected demographics
-types = ["MIGRANTS", "POC", "LGBT+", "MUSLIMS", "WOMEN", "JEWS", "other", "DISABLED"]
+categories = ["MIGRANTS", "POC", "LGBT+", "MUSLIMS", "WOMEN", "JEWS", "other", "DISABLED"]
 
 def optuna_hp_space(trial):
   return {

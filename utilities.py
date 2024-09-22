@@ -6,7 +6,7 @@ import pandas as pd
 from multiprocessing import Pool
 from datetime import datetime
 from typing import Optional
-from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, AutoConfig
 from pathlib import Path
 
 from param import GPT2_params, BART_params
@@ -59,7 +59,7 @@ def model_selection(modeltype: str, modelname: Optional[str] ):
     
     return params
 
-def load_model(modeltype: str, params: dict, config):
+def load_model(modeltype: str, params: dict):
     # Load base model from 
     load_path = Path().resolve().joinpath(
         params['save_dir'],
@@ -68,9 +68,13 @@ def load_model(modeltype: str, params: dict, config):
     print('Loading local model from: ', load_path)
     if modeltype == 'Causal':
         try:
+            tokenizer = AutoTokenizer.from_pretrained(load_path) 
+            config = AutoConfig.from_pretrained(load_path)
             model = AutoModelForCausalLM.from_pretrained(load_path, config=config)
         except:
             print('No local model found, downloading base model from hub')
+            tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
+            config = AutoConfig.from_pretrained(params['model_name'])
             model = AutoModelForCausalLM.from_pretrained(params['model_name'], config=config)
             # Save base model for future use
             save_path = Path().resolve().joinpath(
@@ -81,9 +85,13 @@ def load_model(modeltype: str, params: dict, config):
             model.save_pretrained(save_path)
     elif modeltype == 'S2S':
         try:
+            tokenizer = AutoTokenizer.from_pretrained(load_path) 
+            config = AutoConfig.from_pretrained(load_path)
             model = AutoModelForSeq2SeqLM.from_pretrained(load_path, config=config)
         except:
             print('No local model found, downloading base model from hub')
+            tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
+            config = AutoConfig.from_pretrained(params['model_name'])
             model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'], config=config)
             # Save base model for future use
             save_path = Path().resolve().joinpath(
@@ -93,7 +101,7 @@ def load_model(modeltype: str, params: dict, config):
             print('Saving base model locally for future usage at: ', save_path)
             model.save_pretrained(save_path)
 
-    return model
+    return tokenizer, model
 
 def get_model_path(root_dir, load_model_name, version):
     # construct the path to a given model by the model name and it's version (date_time when created)
@@ -111,15 +119,17 @@ def save_prediction(df, save_dir, model_name, version, dataset):
     df.to_csv(save_dir + file_name)
 
 
-def save_model(tokenizer, model, save_directory, model_name, save_option=True):
+def save_model(tokenizer, model, params, save_option=True):
     # save model and tokenizer to a local directory.
-    pt_save_directory = os.path.join(save_directory, model_name)
-    pt_save_directory = os.path.join(
-        pt_save_directory, get_datetime("%d,%m,%Y--%H,%M"))
+    save_path = Path().resolve().joinpath(
+        params['save_dir'],
+        params['training_args'].output_dir,
+        params['model_name'] + get_datetime("%d,%m,%Y--%H,%M"))
 
     if save_option:
-        tokenizer.save_pretrained(pt_save_directory)
-        model.save_pretrained(pt_save_directory)
+        tokenizer.save_pretrained(save_path)
+        model.save_pretrained(save_path)
+        print("Model saved at: ", save_path)
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
 

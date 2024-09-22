@@ -1,9 +1,9 @@
 import pandas as pd
 from datasets import Dataset
-from transformers import AutoConfig, AutoTokenizer, Trainer, Seq2SeqTrainer
+from transformers import Trainer
 import torch
 
-from param import optuna_hp_space, types
+from param import optuna_hp_space, categories
 from data_util import preprocess_data_GPT, data_init, add_category_tokens
 from utilities import save_model, model_selection, load_model
 from hyperparameter_tuning import hyper_param_search
@@ -31,7 +31,7 @@ def main(modeltype: str, modelname=None):
   print('Loading dataset: ', params['train_dir'])
   df = pd.read_csv(params['train_dir'])
   if modeltype == 'Causal':
-    df = preprocess_data_GPT(df, types)
+    df = preprocess_data_GPT(df, categories)
 
 
   # Train/Val split
@@ -46,14 +46,12 @@ def main(modeltype: str, modelname=None):
   '''
 
   print('Loading base model: ', params['model_name'])
-  tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
-  config = AutoConfig.from_pretrained(params['model_name'])
-  model = load_model(modeltype=modeltype, params=params, config=config)
+  tokenizer, model = load_model(modeltype=modeltype, params=params)
 
   # Add each target demographic as a new token to tokenizer if selected
   if params['category']:
-    print('Adding the following categories to the tokenizer: ', types)
-    tokenizer, model = add_category_tokens(types, tokenizer, model)
+    print('Adding the following categories to the tokenizer: ', categories)
+    tokenizer, model = add_category_tokens(categories, tokenizer, model)
 
 
   # DATA PREPROCESSING and Batching
@@ -108,7 +106,7 @@ def main(modeltype: str, modelname=None):
   SAVE MODEL
   '''
 
-  save_model(tokenizer, model, params['save_dir'], params['save_name'], save_option=True)
+  save_model(tokenizer, model, params, save_option=True)
 
 if __name__ == "__main__":
   main(modeltype = 'Causal',        # Causal for GPT, S2S for BART
