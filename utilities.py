@@ -79,13 +79,24 @@ def load_model(modeltype: str, params: dict):
                 load_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",)
-        except:
+            
+        except ValueError:
+            # If no support for flash_attention_2, then use standard implementation
+            model = AutoModelForCausalLM.from_pretrained(params['model_name'])
+
+        except OSError:
             print('No local model found, downloading model from hub')
             tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
-            model = AutoModelForCausalLM.from_pretrained(
-                params['model_name'],
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",)
+            try:
+                model = AutoModelForCausalLM.from_pretrained(
+                    params['model_name'],
+                    torch_dtype=torch.bfloat16,
+                    attn_implementation="flash_attention_2",)
+                
+            except ValueError:
+                # If no support for flash_attention_2, then use standard implementation
+                model = AutoModelForCausalLM.from_pretrained(params['model_name'])
+
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
             model.save_pretrained(load_path)
@@ -98,13 +109,24 @@ def load_model(modeltype: str, params: dict):
                 load_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",)
-        except:
+            
+        except ValueError:
+            # If no support for flash_attention_2, then use standard implementation
+            model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'])
+
+        except OSError:
             print('No local model found, downloading model from hub')
             tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
-            model = AutoModelForSeq2SeqLM.from_pretrained(
-                params['model_name'],
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",)
+            try:
+                model = AutoModelForSeq2SeqLM.from_pretrained(
+                    params['model_name'],
+                    torch_dtype=torch.bfloat16,
+                    attn_implementation="flash_attention_2",)
+                
+            except ValueError:
+                # If no support for flash_attention_2, then use standard implementation
+                model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'])
+
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
             model.save_pretrained(load_path)

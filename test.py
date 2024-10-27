@@ -4,6 +4,7 @@ from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokeni
 from utilities import model_selection, print_gpu_utilization
 from pathlib import Path
 
+
 print(torch.__version__)
 print(torch.cuda.is_available())
 
@@ -26,7 +27,7 @@ outputs = pipe(
 )
 print(outputs[0]["generated_text"][-1])
 '''
-params = model_selection(modeltype='Causal',modelname='openai-community/gpt2-medium')
+params = model_selection(modeltype='Causal',modelname='google/flan-t5-large')
 
 model_name = params['model_name'].split('/')[-1]
 load_path = Path().resolve().joinpath(

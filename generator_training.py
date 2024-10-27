@@ -1,7 +1,13 @@
 import os
+import json
+json_file_path = "./credentials.json"
+with open(json_file_path, "r") as f:
+    credentials = json.load(f)
+
+
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-os.environ["HF_TOKEN"] = "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"
+os.environ["HF_TOKEN"] = credentials["HF_TOKEN"]
 
 import pandas as pd
 from datasets import Dataset
@@ -128,12 +134,14 @@ def main(modeltype: str, modelname:str=None, category:bool=False):
   save_model(tokenizer, model, params, save_option=True)
 
 if __name__ == "__main__":
-  main(modeltype = 'Causal',                      # Causal for GPT, S2S for BART
-       modelname = 'meta-llama/Llama-3.2-3B-Instruct',    # specify base model if wanted, default is set in param
+  main(modeltype = 'S2S',                      # Causal for GPT, S2S for BART
+       modelname = 'google/flan-t5-large',    # specify base model if wanted, default is set in param
        category = False)            
   
   # openai-community/gpt2-medium      Causal
   # openai-community/gpt2-xl          Causal
+  # google/flan-t5-large              Seq2Seq
+  # google/flan-t5-xl                 Seq2Seq
   # google/flan-t5-xxl                Seq2Seq
   # meta-llama/Llama-3.1-8B-Instruct  Causal
   # meta-llama/Llama-3.2-1B-Instruct  Causal
