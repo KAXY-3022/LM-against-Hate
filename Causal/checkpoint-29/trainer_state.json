@@ -1,0 +1,41 @@
+{
+  "best_metric": 3.0248939990997314,
+  "best_model_checkpoint": "Causal\\checkpoint-29",
+  "epoch": 0.9830508474576272,
+  "eval_steps": 500,
+  "global_step": 29,
+  "is_hyper_param_search": false,
+  "is_local_process_zero": true,
+  "is_world_process_zero": true,
+  "log_history": [
+    {
+      "epoch": 0.9830508474576272,
+      "eval_loss": 3.0248939990997314,
+      "eval_runtime": 10.4835,
+      "eval_samples_per_second": 22.512,
+      "eval_steps_per_second": 2.862,
+      "step": 29
+    }
+  ],
+  "logging_steps": 500,
+  "max_steps": 580,
+  "num_input_tokens_seen": 0,
+  "num_train_epochs": 20,
+  "save_steps": 500,
+  "stateful_callbacks": {
+    "TrainerControl": {
+      "args": {
+        "should_epoch_stop": false,
+        "should_evaluate": false,
+        "should_log": false,
+        "should_save": true,
+        "should_training_stop": false
+      },
+      "attributes": {}
+    }
+  },
+  "total_flos": 4286208383385600.0,
+  "train_batch_size": 8,
+  "trial_name": null,
+  "trial_params": null
+}

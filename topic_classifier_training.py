@@ -16,7 +16,7 @@ def main(model_name):
     # set data paths
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model_dir = Path().resolve().joinpath('models', 'sexism_classifiers')
+    model_dir = Path().resolve().joinpath('models', 'Classifiers')
     train_dir = Path().resolve().joinpath('data', 'Custom', 'Topic-classification_train.csv')
     test_dir = Path().resolve().joinpath('data', 'Custom', 'Topic-classification_test.csv')
 
@@ -130,8 +130,7 @@ def main(model_name):
     )
 
     trainer.train(resume_from_checkpoint=False,)
-
-    pt_save_directory = os.path.join(model_dir, model_name)
+    pt_save_directory = os.path.join(model_dir, model_name.replace('/', '-'))
     pt_save_directory = os.path.join(pt_save_directory, get_datetime("%d,%m,%Y--%H,%M"))
 
     tokenizer.save_pretrained(pt_save_directory)
@@ -139,4 +138,7 @@ def main(model_name):
 
     
 if __name__ == "__main__":
-    main(model_name="cardiffnlp/tweet-topic-21-multi")            # "NLP-LTU/bertweet-large-sexism-detector" "cardiffnlp/tweet-topic-21-multi"
+    main(model_name="cardiffnlp/tweet-topic-21-multi")
+    # NLP-LTU/bertweet-large-sexism-detector
+    # cardiffnlp/tweet-topic-21-multi
+    # cardiffnlp/tweet-topic-latest-multi

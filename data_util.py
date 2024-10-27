@@ -115,13 +115,12 @@ def data_init(modeltype:str, tokenizer, dataset, model=None):
         tokenized_dataset = dataset.map(
            preprocess_function,
             batched=True,
-            num_proc=4,
             remove_columns=dataset["train"].column_names,
         )
 
         # Chunking texts for batching
         block_size = 512
-        lm_dataset = tokenized_dataset.map(group_texts, batched=True, num_proc=4)
+        lm_dataset = tokenized_dataset.map(group_texts, batched=True)
 
         # prepare tokenizer for data pre-processing
         tokenizer.pad_token = tokenizer.eos_token
@@ -144,7 +143,6 @@ def data_init(modeltype:str, tokenizer, dataset, model=None):
         tokenized_dataset = dataset.map(
             preprocess_function,
             batched=True,
-            num_proc=4,
             remove_columns=dataset["train"].column_names,
         )
         data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)

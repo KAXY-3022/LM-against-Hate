@@ -23,14 +23,14 @@ def main(models, datasets):
 
     # load local models
     def load_model(model_path, model_type):
-        if model_type == "GPT2":
+        if model_type == "Causal":
             model = AutoModelForCausalLM.from_pretrained(model_path,
                                                          #torch_dtype=torch.bfloat16,
                                                          #attn_implementation="flash_attention_2"
                                                          )
             tokenizer = AutoTokenizer.from_pretrained(model_path)
             tokenizer.padding_side = "left" 
-        elif model_type == "BART":
+        elif model_type == "S2S":
             model = AutoModelForSeq2SeqLM.from_pretrained(model_path
                                                          #torch_dtype=torch.bfloat16,
                                                          #attn_implementation="flash_attention_2"
@@ -44,7 +44,7 @@ def main(models, datasets):
 
     # Read csv file into dataframe
 
-    def load_dataset(dataset_name, model_type, model_name):
+    def load_dataset(dataset_name, model_type, target_awareness):
         if dataset_name == 'Base':
             df_raw = pd.read_csv(CONAN_test_dir)
         elif dataset_name == 'Small':
@@ -56,7 +56,7 @@ def main(models, datasets):
             df_raw["Target_2"] = "None"
 
         # TODO: use categoty function to prepare inputs
-        if model_name == 'gpt2-medium-category':
+        if target_awareness:
             df = prepare_input_category(df_raw, categories)
         else:
             df = prepare_input(df_raw, model_type)
@@ -72,7 +72,7 @@ def main(models, datasets):
         model, tokenizer = load_model(model_path, m["model_type"])
         model = model.to(device)
         for dataset in datasets:
-            df, ds = load_dataset(dataset, m["model_type"], m["load_model_name"])
+            df, ds = load_dataset(dataset, m["model_type"], m["TA"])
             df["Prediction"] = predict(
                 ds,
                 model, 
@@ -95,31 +95,36 @@ def main(models, datasets):
 
 
 gpt2_small = {
-    "model_type": "GPT2",
+    "model_type": "Causal",
+    "TA": False,
     "load_model_name": "gpt2",
     "version": "11,03,2023-16,02"
     }
 
 gpt2_medium = {
-    "model_type": "GPT2",
-    "load_model_name": "gpt2-medium-category",
-    "version": "11,06,2023--00,31"
-    }
-
-gpt2_medium_category = {
-    "model_type": "GPT2",
+    "model_type": "Causal",
+    "TA": False,
     "load_model_name": "gpt2-medium",
     "version": "16,05,2023-21,09"
     }
 
+gpt2_medium_category = {
+    "model_type": "Causal",
+    "TA": True,
+    "load_model_name": "gpt2-medium-category",
+    "version": "11,06,2023--00,31"
+    }
+
 bart_small = {
-    "model_type": "BART",
+    "model_type": "S2S",
+    "TA": False,
     "load_model_name": "bart",
     "version": "17,03,2023-22,54"
     }
 
 bart_large = {
-    "model_type": "BART",
+    "model_type": "S2S",
+    "TA": False,
     "load_model_name": "bart-large",
     "version": "18,05,2023--19,18"
     }

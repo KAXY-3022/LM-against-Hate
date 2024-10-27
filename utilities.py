@@ -6,10 +6,12 @@ import pandas as pd
 from multiprocessing import Pool
 from datetime import datetime
 from typing import Optional
-from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
 from pathlib import Path
+from pynvml import *
+from peft import get_peft_model
 
-from param import GPT2_params, BART_params
+from param import Causal_params, S2S_params
 
 
 def cleanup():
@@ -50,57 +52,66 @@ def detokenize(x):
 
 def model_selection(modeltype: str, modelname: Optional[str] ):
     if modeltype == 'S2S':
-        params = BART_params
+        params = S2S_params
     elif modeltype == 'Causal':
-        params = GPT2_params
+        params = Causal_params
 
     if modelname:
         params['model_name'] = modelname
+        params['save_name'] = modelname.split('/')[-1] + '_againstHate'
     
     return params
 
 def load_model(modeltype: str, params: dict):
     # Load base model from 
+    model_name = params['model_name'].split('/')[-1]
     load_path = Path().resolve().joinpath(
         params['save_dir'],
         params['training_args'].output_dir,
-        params['model_name'])
+        model_name)
+    
     print('Loading local model from: ', load_path)
+
     if modeltype == 'Causal':
         try:
             tokenizer = AutoTokenizer.from_pretrained(load_path) 
-            config = AutoConfig.from_pretrained(load_path)
-            model = AutoModelForCausalLM.from_pretrained(load_path, config=config)
+            model = AutoModelForCausalLM.from_pretrained(
+                load_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",)
         except:
-            print('No local model found, downloading base model from hub')
+            print('No local model found, downloading model from hub')
             tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
-            config = AutoConfig.from_pretrained(params['model_name'])
-            model = AutoModelForCausalLM.from_pretrained(params['model_name'], config=config)
+            model = AutoModelForCausalLM.from_pretrained(
+                params['model_name'],
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",)
             # Save base model for future use
-            save_path = Path().resolve().joinpath(
-                params['save_dir'], 
-                params['training_args'].output_dir,
-                params['model_name'])
-            print('Saving base model locally for future usage at: ', save_path)
-            model.save_pretrained(save_path)
+            print('Saving model locally for future usage at: ', load_path)
+            model.save_pretrained(load_path)
+            tokenizer.save_pretrained(load_path)
+
     elif modeltype == 'S2S':
         try:
-            tokenizer = AutoTokenizer.from_pretrained(load_path) 
-            config = AutoConfig.from_pretrained(load_path)
-            model = AutoModelForSeq2SeqLM.from_pretrained(load_path, config=config)
+            tokenizer = AutoTokenizer.from_pretrained(load_path)
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                load_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",)
         except:
-            print('No local model found, downloading base model from hub')
+            print('No local model found, downloading model from hub')
             tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
-            config = AutoConfig.from_pretrained(params['model_name'])
-            model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'], config=config)
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                params['model_name'],
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",)
             # Save base model for future use
-            save_path = Path().resolve().joinpath(
-                params['save_dir'], 
-                params['training_args'].output_dir,
-                params['model_name'])
-            print('Saving base model locally for future usage at: ', save_path)
-            model.save_pretrained(save_path)
-
+            print('Saving model locally for future usage at: ', load_path)
+            model.save_pretrained(load_path)
+            tokenizer.save_pretrained(load_path)
+            
+    model.enable_input_require_grads()
+    model = get_peft_model(model, params['peft_config'])
     return tokenizer, model
 
 def get_model_path(root_dir, load_model_name, version):
@@ -133,3 +144,17 @@ def save_model(tokenizer, model, params, save_option=True):
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
 
+
+
+
+def print_gpu_utilization():
+    nvmlInit()
+    handle = nvmlDeviceGetHandleByIndex(0)
+    info = nvmlDeviceGetMemoryInfo(handle)
+    print(f"GPU memory occupied: {info.used//1024**2} MB.")
+
+
+def print_summary(result):
+    print(f"Time: {result.metrics['train_runtime']:.2f}")
+    print(f"Samples/second: {result.metrics['train_samples_per_second']:.2f}")
+    print_gpu_utilization()
