@@ -50,7 +50,7 @@ def detokenize(x):
     return x.replace(" .", ".").replace(" ,", ",").replace(" !", "!").replace(" ?", "?").replace(" )", ")").replace("( ", "(")  # noqa
 
 
-def model_selection(modeltype: str, modelname: Optional[str] ):
+def model_selection(modeltype: str, modelname: Optional[str]):
     if modeltype == 'S2S':
         params = S2S_params
     elif modeltype == 'Causal':
@@ -59,11 +59,12 @@ def model_selection(modeltype: str, modelname: Optional[str] ):
     if modelname:
         params['model_name'] = modelname
         params['save_name'] = modelname.split('/')[-1] + '_againstHate'
-    
+
     return params
 
+
 def load_model(modeltype: str, params: dict):
-    # Load base model from 
+    # Load base model from
     model_name = params['model_name'].split('/')[-1]
     load_path = Path().resolve().joinpath(
         params['save_dir'],
@@ -74,28 +75,29 @@ def load_model(modeltype: str, params: dict):
 
     if modeltype == 'Causal':
         try:
-            tokenizer = AutoTokenizer.from_pretrained(load_path) 
+            tokenizer = AutoTokenizer.from_pretrained(load_path)
             model = AutoModelForCausalLM.from_pretrained(
                 load_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",)
-            
+
         except ValueError:
             # If no support for flash_attention_2, then use standard implementation
             model = AutoModelForCausalLM.from_pretrained(params['model_name'])
 
         except OSError:
             print('No local model found, downloading model from hub')
-            tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
+            tokenizer = AutoTokenizer.from_pretrained(params['model_name'])
             try:
                 model = AutoModelForCausalLM.from_pretrained(
                     params['model_name'],
                     torch_dtype=torch.bfloat16,
                     attn_implementation="flash_attention_2",)
-                
+
             except ValueError:
                 # If no support for flash_attention_2, then use standard implementation
-                model = AutoModelForCausalLM.from_pretrained(params['model_name'])
+                model = AutoModelForCausalLM.from_pretrained(
+                    params['model_name'])
 
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
@@ -109,32 +111,34 @@ def load_model(modeltype: str, params: dict):
                 load_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",)
-            
+
         except ValueError:
             # If no support for flash_attention_2, then use standard implementation
             model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'])
 
         except OSError:
             print('No local model found, downloading model from hub')
-            tokenizer = AutoTokenizer.from_pretrained(params['model_name']) 
+            tokenizer = AutoTokenizer.from_pretrained(params['model_name'])
             try:
                 model = AutoModelForSeq2SeqLM.from_pretrained(
                     params['model_name'],
                     torch_dtype=torch.bfloat16,
                     attn_implementation="flash_attention_2",)
-                
+
             except ValueError:
                 # If no support for flash_attention_2, then use standard implementation
-                model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'])
+                model = AutoModelForSeq2SeqLM.from_pretrained(
+                    params['model_name'])
 
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
             model.save_pretrained(load_path)
             tokenizer.save_pretrained(load_path)
-            
+
     model.enable_input_require_grads()
     model = get_peft_model(model, params['peft_config'])
     return tokenizer, model
+
 
 def get_model_path(root_dir, load_model_name, version):
     # construct the path to a given model by the model name and it's version (date_time when created)
@@ -165,8 +169,6 @@ def save_model(tokenizer, model, params, save_option=True):
         print("Model saved at: ", save_path)
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
-
-
 
 
 def print_gpu_utilization():

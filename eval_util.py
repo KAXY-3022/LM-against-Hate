@@ -1,4 +1,3 @@
-
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from collections import Counter
 import re
@@ -8,6 +7,7 @@ import torch
 import pandas as pd
 import numpy as np
 from numpy.linalg import norm
+from pathlib import Path
 
 from tqdm import tqdm
 from tqdm.auto import trange
@@ -22,52 +22,60 @@ from utilities import cleanup, detokenize
 
 
 def evaluation_pipeline(dfs, infos, args):
+    # Set up empty stack for storing results
     eval_results = []
 
-    # Counter-Argument
-    CA_scores = compute_argument_type(dfs, args)
+    # 1. Counter-Argument Score
+    CA_scores = compute_argument_score(dfs, args)
 
-    # Toxicity Classification Model
 
+    # 2. Toxicity Score
     models = ["martin-ha/toxic-comment-model",
               'SkolkovoInstitute/roberta_toxicity_classifier']
     temp_ = 0
     for model_path in models:
-        temp = compute_toxicity(dfs, model_path, args)
+        temp = compute_toxicity_score(dfs, model_path, args)
         temp_ += np.array(temp)
-
+        
     toxicity_scores = temp_ / len(models)
 
-    # CoLA
-    CoLA_scores = compute_cola_transformers(dfs, args)
 
-    # Hate/Normal/Offensive
-    HNO_scores = compute_offensiveness(dfs, args)
+    # 3. CoLA Score
+    CoLA_scores = compute_cola_score(dfs, args)
 
-    # Similarities
+
+    # 4. Hate/Normal/Offensive Score
+    HNO_scores = compute_Offense_Hate_score(dfs, args)
+
+
+    # 5. Similarity Score
     models = ['all-MiniLM-L6-v2',
               'all-mpnet-base-v2',
               'LaBSE',
               ]
-
+    
     if infos[0]["Test_Set"] != "Sexism":
         Label_sim_scores = compute_similarity_pipeline(
             dfs, args, models, task='label')
-
+        
     models = ['multi-qa-MiniLM-L6-cos-v1',
               "multi-qa-distilbert-cos-v1",
               # 'multi-qa-mpnet-base-dot-v1',
               ]
-
+    
     Context_sim_scores = compute_similarity_pipeline(
         dfs, args, models, task='context')
 
-    # RR
+
+    # 6. RR
     repetition_rate = calculate_ngram_repetition_rate(dfs, args)
 
-    # Topic
-    topics = compute_topic(dfs, args, infos)
 
+    # 7. Topic Relevance Score
+    topics = compute_topicRelevance_score(dfs, args, infos)
+
+
+    # 8. Final Scoring
     for idx, info in enumerate(infos):
         # Prepare data for saving evaluation results
         eval_ = {'Model_Name': info["Model_Name"],
@@ -145,19 +153,21 @@ def compute_similarity_score(model, preds, targets):
     return cosine_score, cosine_average
 
 
-def compute_toxicity(dfs, model_path, args, soft=False):
-    # Toxicity Classification Model
-    # ---
-    # This model is trained for toxicity classification task.
-    # The dataset used for training is the merge of the English parts of the three datasets
-    # Jigsaw (Jigsaw 2018, Jigsaw 2019, Jigsaw 2020), containing around 2 million examples.
-    # We split it into two parts and fine-tune a RoBERTa model (RoBERTa: A Robustly Optimized BERT Pretraining Approach) on it.
-    # The classifiers perform closely on the test set of the first Jigsaw competition,
-    # reaching the AUC-ROC of 0.98 and F1-score of 0.76.
-    # ---
-    # 1: neutral
-    # 0: toxic
-
+def compute_toxicity_score(dfs, model_path, args, soft=False):
+    '''
+    Toxicity Classification Model
+    ---
+    This model is trained for toxicity classification task.
+    The dataset used for training is the merge of the English parts of the three datasets
+    Jigsaw (Jigsaw 2018, Jigsaw 2019, Jigsaw 2020), containing around 2 million examples.
+    We split it into two parts and fine-tune a RoBERTa model (RoBERTa: A Robustly Optimized BERT Pretraining Approach) on it.
+    The classifiers perform closely on the test set of the first Jigsaw competition,
+    reaching the AUC-ROC of 0.98 and F1-score of 0.76.
+    ---
+    1: neutral
+    0: toxic
+    '''
+    
     print('-'*80)
     print('Calculating toxicity of predictions')
 
@@ -166,7 +176,6 @@ def compute_toxicity(dfs, model_path, args, soft=False):
     model = AutoModelForSequenceClassification.from_pretrained(
         model_path).to(args["device"])
 
-    results_list = []
     scores = []
 
     for df in dfs:
@@ -196,7 +205,7 @@ def compute_toxicity(dfs, model_path, args, soft=False):
     return scores
 
 
-def compute_cola_transformers(dfs, args, soft=False):
+def compute_cola_score(dfs, args, soft=False):
     # CoLA
     # the lower the better
     print('-'*80)
@@ -237,7 +246,7 @@ def compute_cola_transformers(dfs, args, soft=False):
     return scores
 
 
-def compute_offensiveness(dfs, args, soft=False):
+def compute_Offense_Hate_score(dfs, args, soft=False):
     # Offensive/Hate
     # [0:HATE 1:NORMAL 2:OFFENSIVE]
 
@@ -285,7 +294,7 @@ def compute_offensiveness(dfs, args, soft=False):
     return scores
 
 
-def compute_argument_type(dfs, args, soft=False):
+def compute_argument_score(dfs, args, soft=False):
     # finetuned on "ThinkCERCA/counterargument_hugging"
     model_path = "gdrive/My Drive/Master_Thesis/models/bert-counter-speech-classifier/22,05,2023--21,12"
     model = TFAutoModelForSequenceClassification.from_pretrained(
@@ -325,9 +334,11 @@ def compute_argument_type(dfs, args, soft=False):
     return scores
 
 
-def compute_topic(dfs, args, infos):
-    # finetuned on "ThinkCERCA/counterargument_hugging"
-    model_path = "gdrive/My Drive/Master_Thesis/models/sexism_classifiers/cardiffnlp/tweet-topic-21-multi/09,06,2023--21,45"
+def compute_topicRelevance_score(dfs, args, infos):
+    # finetuned on "cardiffnlp-tweet-topic-21-multi"
+    model_path = Path().resolve().joinpath('models', 'Classifiers',
+                                           'cardiffnlp-tweet-topic-21-multi-09,06,2023--21,45')
+
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     if tokenizer.pad_token is None:
