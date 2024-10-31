@@ -58,7 +58,7 @@ def main(modeltype: str, modelname: str = None, category: bool = False):
     print('Loading dataset: ', params['train_dir'])
     df = pd.read_csv(params['train_dir'])
     if modeltype == 'Causal':
-        df = preprocess_data_Causal(df, categories)
+        df = preprocess_data_Causal(df, params['category'])
 
     # Train/Val split
     print('Spliting dataset')

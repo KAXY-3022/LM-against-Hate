@@ -2,7 +2,7 @@ import numpy as np
 from transformers import DataCollatorForLanguageModeling, DataCollatorForSeq2Seq
 
 
-def concat_hs_cs(df):
+def concat_hs_cs(df, category:bool):
   '''
   Upon receiving the dataframe, we expect the samples to look like:
 
@@ -13,35 +13,20 @@ def concat_hs_cs(df):
   We concatenate them into
   '<|endoftext|><CLASS-1><CLASS-4> Hate-speech: Some Hateful Comments. Counter-speech: A Counter Reply<|endoftext|>'
   '''
-
-  df["text"] = '<|endoftext|>' + df["Target"] + "Hate-speech: " + df['Hate_Speech'] + \
-      " " + "Counter-speech: " + df["Counter_Speech"] + '<|endoftext|>'
-
+  if category:
+    df["text"] = '<|endoftext|>' + df["Target"] + "Hate-speech: " + df['Hate_Speech'] + \
+        " " + "Counter-speech: " + df["Counter_Speech"] + '<|endoftext|>'
+  else:
+    df["text"] = '<|endoftext|>' + "Hate-speech: " + df['Hate_Speech'] + \
+        " " + "Counter-speech: " + df["Counter_Speech"] + '<|endoftext|>'
   return df
 
 
-def extract_labels(df, targets):
+def tokenize_labels(df):
   '''
   extract and tokenize target demographic labels in the original dataset and convert them into predefined class tokens
   '''
   df_test = df.copy()
-  types = targets
-  
-  def split_classes(item):
-    return item.split("/")
-  
-  def split_secondary_classes(item):
-    if item != item:
-      return []
-    return item.upper().split(",")
-  
-  def select_classes(item):
-    for ele in item:
-      if ele.strip() in types:
-        continue
-      else:
-        item.remove(ele)
-    return item
   
   def tokenize_classes(item):
     '''
@@ -54,26 +39,13 @@ def extract_labels(df, targets):
       temp = temp + '<' + ele.strip() + '>'
     return temp
   
-  # Rename Label [Islamophobia] to [MUSLIMS]
-  df_test["Target"] = np.where(
-      df_test["Target"] == "Islamophobia", "MUSLIMS", df_test["Target"])
-  # Format instances which contain multiple labels - seperate each label with /
-  df_test["Target"] = df_test["Target"].map(split_classes)
-  # Format secondary labels if exist
-  df_test["Target_2"] = df_test["Target_2"].map(split_secondary_classes)
-  # Merge two sets of labels
-  df_test["Target"] = df_test["Target"] + df_test["Target_2"]
-  
-  # Remove label that are not interested
-  df_test["Target"] = df_test["Target"].map(select_classes)
-  df_test["Target"] = df_test["Target"].map(select_classes)
   # Concatenate all labels into a string into class tokens <CLASS-1><CLASS-2> etc.
   df_test["Target"] = df_test["Target"].map(tokenize_classes)
   
   return df_test
 
 
-def preprocess_data_Causal(df, types):
+def preprocess_data_Causal(df, category:bool):
   '''
   Data
   
@@ -87,7 +59,7 @@ def preprocess_data_Causal(df, types):
   
   Hate-speech: "Text" Counter-speech: "Text"
   '''
-  return concat_hs_cs(extract_labels(df, types))
+  return concat_hs_cs(tokenize_labels(df), category)
 
 
 def data_init(modeltype: str, tokenizer, dataset, model=None):

@@ -39,7 +39,7 @@ Causal_training_args = TrainingArguments(
 Causal_params = {
   'model_name': "openai-community/gpt2-medium",
   'save_name': "gpt2-medium_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
+  'train_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_train.csv'),
   'save_dir': Path().resolve().joinpath('models'),
   'training_args': Causal_training_args,
   'category': False,
@@ -70,7 +70,7 @@ S2S_training_args = Seq2SeqTrainingArguments(
 S2S_params = {
   'model_name': 'facebook/bart-large',
   'save_name': "bart-large_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
+  'train_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_train.csv'),
   'save_dir': Path().resolve().joinpath('models'),
   'training_args': S2S_training_args,
   'category': False,

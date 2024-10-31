@@ -169,8 +169,8 @@ def save_model(tokenizer, model, params, save_option=True):
         print("Model saved at: ", save_path)
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
-
-
+        
+        
 def print_gpu_utilization():
     nvmlInit()
     handle = nvmlDeviceGetHandleByIndex(0)
