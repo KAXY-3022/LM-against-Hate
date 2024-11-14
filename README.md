@@ -25,8 +25,9 @@ Tested models:
 └──/...          ---------------------------------------- Evaluation results
 │
 │./models
-└──/bart_CONAN   ---------------------------------------- fine-tuned BART models
-└──/gpt2_CONAN   ---------------------------------------- fine-tuned GPT2 models
+└──/Causal   ---------------------------------------- Causal Generators
+└──/S2S   ---------------------------------------- Sequence-to-Sequence Generators
+└──/Classifiers   ---------------------------------------- Classifier models used for evaluation or label generation
 │
 │./predictions
 └──/...          ---------------------------------------- Model predictions
@@ -36,14 +37,12 @@ Tested models:
 ```
 ## Data
 
-Reddit, Gab: Please download the data from [A Benchmark Dataset for Learning to Intervene in Online Hate Speech](https://github.com/jing-qian/A-Benchmark-Dataset-for-Learning-to-Intervene-in-Online-Hate-Speech/tree/master/data) (EMNLP2019) 
+Reddit, Gab: available at [A Benchmark Dataset for Learning to Intervene in Online Hate Speech](https://github.com/jing-qian/A-Benchmark-Dataset-for-Learning-to-Intervene-in-Online-Hate-Speech/tree/master/data) (EMNLP2019) 
 
-CONAN: Please download the data from [CONAN - COunter NArratives through Nichesourcing: a Multilingual Dataset of Responses to Fight Online Hate Speech](https://github.com/marcoguerini/CONAN) (ACL2019) 
+CONAN: available at [CONAN - COunter NArratives through Nichesourcing: a Multilingual Dataset of Responses to Fight Online Hate Speech](https://github.com/marcoguerini/CONAN) (ACL2019) 
 
-## Add your files
+CrowdCounter: available at [CrowdCounter: A benchmark type-specific multi-target counterspeech dataset](https://github.com/hate-alert/crowdcounter) (CoNLL2024) 
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
 
 ```
 cd existing_repo
