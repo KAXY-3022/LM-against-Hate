@@ -18,19 +18,19 @@ Tested models:
 
 ```
 │./data
-└──/...          ---------------------------------------- Sources for these datasets -> see Data section
-└──/Custom       ---------------------------------------- combined dataset used for training and testing (pre-processed)
+└──/...            ---------------------------------------- Sources for these datasets -> see Data section
+└──/Custom         ---------------------------------------- combined dataset used for training and testing (pre-processed)
 │
 │./evaluation
-└──/...          ---------------------------------------- Evaluation results
+└──/...            ---------------------------------------- Evaluation results
 │
 │./models
-└──/Causal   ---------------------------------------- Causal Generators
-└──/S2S   ---------------------------------------- Sequence-to-Sequence Generators
-└──/Classifiers   ---------------------------------------- Classifier models used for evaluation or label generation
+└──/Causal         ---------------------------------------- Causal Generators
+└──/S2S            ---------------------------------------- Sequence-to-Sequence Generators
+└──/Classifiers    ---------------------------------------- Classifier models used for evaluation or label generation
 │
 │./predictions
-└──/...          ---------------------------------------- Model predictions
+└──/...            ---------------------------------------- Model predictions
 │
 │./NoteBooks
 │./.py files
