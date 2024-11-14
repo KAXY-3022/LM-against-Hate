@@ -28,7 +28,6 @@ def evaluation_pipeline(dfs, infos, args):
     # 1. Counter-Argument Score
     CA_scores = compute_argument_score(dfs, args)
 
-
     # 2. Toxicity Score
     models = ["martin-ha/toxic-comment-model",
               'SkolkovoInstitute/roberta_toxicity_classifier']
@@ -36,43 +35,41 @@ def evaluation_pipeline(dfs, infos, args):
     for model_path in models:
         temp = compute_toxicity_score(dfs, model_path, args)
         temp_ += np.array(temp)
-        
-    toxicity_scores = temp_ / len(models)
 
+    toxicity_scores = temp_ / len(models)
 
     # 3. CoLA Score
     CoLA_scores = compute_cola_score(dfs, args)
 
-
     # 4. Hate/Normal/Offensive Score
     HNO_scores = compute_Offense_Hate_score(dfs, args)
-
 
     # 5. Similarity Score
     models = ['all-MiniLM-L6-v2',
               'all-mpnet-base-v2',
               'LaBSE',
               ]
-    
+
     if infos[0]["Test_Set"] != "Sexism":
         Label_sim_scores = compute_similarity_pipeline(
             dfs, args, models, task='label')
-        
+
     models = ['multi-qa-MiniLM-L6-cos-v1',
               "multi-qa-distilbert-cos-v1",
               # 'multi-qa-mpnet-base-dot-v1',
               ]
-    
+
     Context_sim_scores = compute_similarity_pipeline(
         dfs, args, models, task='context')
 
-
-    # 6. RR
+    # 6. Repetition Rate
     repetition_rate = calculate_ngram_repetition_rate(dfs, args)
-
 
     # 7. Topic Relevance Score
     topics = compute_topicRelevance_score(dfs, args, infos)
+
+
+
 
 
     # 8. Final Scoring
@@ -108,18 +105,77 @@ def evaluation_pipeline(dfs, infos, args):
     return eval_results
 
 
-def compute_similarity_pipeline(dfs, args, models, task):
 
+
+def load_classifier_model(model_name:str, device:str, tf:bool=False):
+    '''
+    model_name: str = name on model card, optimally, the locally stored model should have the same name,
+    device: str = 'cuda' or 'cpu'
+    '''
+
+    # initialize model and tokenizer
+    modelPath = Path().resolve().joinpath('models', 'Classifiers', model_name)
+    
+    if tf:
+        try:
+            # load local model if exists
+            tokenizer = AutoTokenizer.from_pretrained(modelPath)
+            model = TFAutoModelForSequenceClassification.from_pretrained(
+                modelPath)
+        except OSError:
+            # load model from source
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = TFAutoModelForSequenceClassification.from_pretrained(
+                model_name)
+            # save model locally for future usage
+            model.save_pretrained(modelPath)
+            tokenizer.save_pretrained(modelPath)
+    else:
+        try:
+            # load local model if exists
+            tokenizer = AutoTokenizer.from_pretrained(modelPath)
+            model = AutoModelForSequenceClassification.from_pretrained(
+                modelPath).to(device)
+        except OSError:
+            # load model from source
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model_name).to(device)
+            # save model locally for future usage
+            model.save_pretrained(modelPath)
+            tokenizer.save_pretrained(modelPath)
+        
+    return model, tokenizer
+
+
+def compute_similarity_pipeline(dfs, args, models, task):
+    '''
+    Compute similarity scores using sentence transformers
+    
+    dfs: a list of dataframes to be evaluated
+    args: evaluation arguments
+    models: selected models to use for evaluation
+    task: evaluation task, label similarity or context similarity
+    '''
     scores = np.zeros([len(dfs), len(models)])
 
     # for each model:
     for m_idx, modelname in enumerate(models):
         print('-'*80)
         print("Computing %s Similarity Score with %s ." % (task, modelname))
-
+        
         # initialize model
-        model = SentenceTransformer(
-            'sentence-transformers/' + modelname).to(args["device"])
+        modelPath = str(Path().resolve().joinpath(
+            'models', 'Classifiers', 'sentence-transformers', modelname))
+        try:
+            # load local model if exists
+            model = SentenceTransformer(modelPath).to(args["device"])
+        except ValueError:
+            # load model from source
+            model = SentenceTransformer(
+                'sentence-transformers/' + modelname).to(args["device"])
+            # save model locally for future use
+            model.save(modelPath)
 
         for df_idx, df in enumerate(dfs):
 
@@ -140,6 +196,11 @@ def compute_similarity_pipeline(dfs, args, models, task):
     return scores
 
 
+
+
+
+
+
 def compute_similarity_score(model, preds, targets):
     preds_embeddings = model.encode(preds, show_progress_bar=True)
     targets_embeddings = model.encode(targets, show_progress_bar=True)
@@ -151,6 +212,16 @@ def compute_similarity_score(model, preds, targets):
     cosine_average = statistics.fmean(cosine_score)
 
     return cosine_score, cosine_average
+
+
+
+
+
+
+
+
+
+
 
 
 def compute_toxicity_score(dfs, model_path, args, soft=False):
@@ -167,15 +238,13 @@ def compute_toxicity_score(dfs, model_path, args, soft=False):
     1: neutral
     0: toxic
     '''
-    
+
     print('-'*80)
     print('Calculating toxicity of predictions')
 
-    # load tokenizer and model weights
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_path).to(args["device"])
-
+    # initialize model and tokenizer
+    model, tokenizer = load_classifier_model(model_name=model_path,device=args['device'])
+    
     scores = []
 
     for df in dfs:
@@ -210,11 +279,11 @@ def compute_cola_score(dfs, args, soft=False):
     # the lower the better
     print('-'*80)
     print('Calculating CoLA Acceptability Stats')
-
-    model = AutoModelForSequenceClassification.from_pretrained(
-        "textattack/roberta-base-CoLA").to(args["device"])
-    tokenizer = AutoTokenizer.from_pretrained(
-        "textattack/roberta-base-CoLA")
+    
+    # initialize model and tokenizer
+    model, tokenizer = load_classifier_model(
+        model_name='textattack/roberta-base-CoLA', device=args['device'])
+    
 
     scores = []
 
@@ -252,11 +321,11 @@ def compute_Offense_Hate_score(dfs, args, soft=False):
 
     print('-'*80)
     print('Calculating Offensive/Hate-Speech Classification')
+    
+    # initialize model and tokenizer
+    model, tokenizer = load_classifier_model(
+        model_name="Hate-speech-CNERG/bert-base-uncased-hatexplain", device=args['device'])
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        "Hate-speech-CNERG/bert-base-uncased-hatexplain")
-    model = AutoModelForSequenceClassification.from_pretrained(
-        "Hate-speech-CNERG/bert-base-uncased-hatexplain").to(args["device"])
 
     scores = []
 
@@ -295,11 +364,15 @@ def compute_Offense_Hate_score(dfs, args, soft=False):
 
 
 def compute_argument_score(dfs, args, soft=False):
-    # finetuned on "ThinkCERCA/counterargument_hugging"
-    model_path = "gdrive/My Drive/Master_Thesis/models/bert-counter-speech-classifier/22,05,2023--21,12"
-    model = TFAutoModelForSequenceClassification.from_pretrained(
-        model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    '''
+    finetuned on "ThinkCERCA/counterargument_hugging"
+    '''
+    # initialize model and tokenizer
+    model, tokenizer = load_classifier_model(
+        model_name="tum-nlp/bert-counterspeech-classifier", device=args['device'], tf=True)
+
+    # TODO add new model to the pipeline _ chkla/roberta-argument
+    
 
     print('-'*80)
     print('Calculating Argument Type of predictions')
@@ -335,17 +408,16 @@ def compute_argument_score(dfs, args, soft=False):
 
 
 def compute_topicRelevance_score(dfs, args, infos):
-    # finetuned on "cardiffnlp-tweet-topic-21-multi"
-    model_path = Path().resolve().joinpath('models', 'Classifiers',
-                                           'cardiffnlp-tweet-topic-21-multi-09,06,2023--21,45')
+    '''
+    finetuned on "cardiffnlp-tweet-topic-21-multi"
+    '''
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    # initialize model and tokenizer
+    model, tokenizer = load_classifier_model(
+        model_name='tum-nlp/roberta-target-demographic-classifier', device=args['device'])
 
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_path).to(args["device"])
 
     print('-'*80)
     print('Calculating Topic of predictions')
@@ -368,8 +440,10 @@ def compute_topicRelevance_score(dfs, args, infos):
             df["Target"] = np.where(
                 df["Target"] == "Islamophobia", "MUSLIMS", df["Target"])
             df["Target"] = df["Target"].map(format_multiclass)
-            df["Target_2"] = df["Target_2"].map(format_multiclass_2)
-            df["Target"] = df["Target"] + df["Target_2"]
+            
+            if df['Target_2']:
+                df["Target_2"] = df["Target_2"].map(format_multiclass_2)
+                df["Target"] = df["Target"] + df["Target_2"]
 
         types = [None]*len(model.config.label2id)
         for label, idx in model.config.label2id.items():

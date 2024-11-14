@@ -1,6 +1,7 @@
 import torch
 from transformers import pipeline
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, AutoModelForSequenceClassification
+from sentence_transformers import SentenceTransformer, util
 from utilities import model_selection, print_gpu_utilization
 from pathlib import Path
 from eval_util import compute_topicRelevance_score
@@ -8,7 +9,11 @@ from tqdm import tqdm
 from tqdm.auto import trange
 import pandas as pd
 import datasets
+import numpy as np
 import os
+from inf_util import prepare_input_category
+from ast import literal_eval
+from scipy.special import expit
 
 print(torch.__version__)
 print(torch.cuda.is_available())
@@ -17,7 +22,8 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
 
-
+model = SentenceTransformer(
+    'sentence-transformers/' + 'multi-qa-MiniLM-L6-cos-v1').to(device)
 '''
 model_id = "meta-llama/Llama-3.2-1B-Instruct"
 pipe = pipeline(

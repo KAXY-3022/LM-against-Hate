@@ -15,8 +15,8 @@ def optuna_hp_space(trial):
       }
 
 Causal_training_args = TrainingArguments(
-    output_dir="Causal",
-    num_train_epochs=10.0,
+    output_dir=Path().resolve().joinpath('models','Causal'),
+    num_train_epochs=200.0,
     learning_rate=3e-05,
     weight_decay=0.05,
     warmup_ratio=0.1,
@@ -24,7 +24,7 @@ Causal_training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     eval_strategy="epoch",
     save_strategy="epoch",
-    save_total_limit=3, 
+    save_total_limit=1, 
     load_best_model_at_end=True,
     report_to="none",
     torch_compile=False,
@@ -39,16 +39,18 @@ Causal_training_args = TrainingArguments(
 Causal_params = {
   'model_name': "openai-community/gpt2-medium",
   'save_name': "gpt2-medium_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_train.csv'),
-  'save_dir': Path().resolve().joinpath('models'),
+  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
+  'val_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_val.csv'),
+  'test_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_test.csv'),
+  'save_dir': Path().resolve().joinpath('models', 'Causal'),
   'training_args': Causal_training_args,
   'category': False,
   'peft_config': LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1)
 }
 
 S2S_training_args = Seq2SeqTrainingArguments(
-    output_dir="S2S",
-    num_train_epochs=10.0,
+    output_dir=Path().resolve().joinpath('models', 'S2S'),
+    num_train_epochs=200.0,
     learning_rate=3e-5,
     gradient_accumulation_steps=4,
     weight_decay=0.01,
@@ -57,7 +59,7 @@ S2S_training_args = Seq2SeqTrainingArguments(
     lr_scheduler_type="cosine",
     eval_strategy="epoch",
     save_strategy="epoch",
-    save_total_limit=2,
+    save_total_limit=1,
     gradient_checkpointing=True,
     gradient_checkpointing_kwargs={'use_reentrant':False},
     tf32=True,
@@ -70,8 +72,10 @@ S2S_training_args = Seq2SeqTrainingArguments(
 S2S_params = {
   'model_name': 'facebook/bart-large',
   'save_name': "bart-large_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_train.csv'),
-  'save_dir': Path().resolve().joinpath('models'),
+  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
+  'val_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_val.csv'),
+  'test_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_test.csv'),
+  'save_dir': Path().resolve().joinpath('models', 'S2S'),
   'training_args': S2S_training_args,
   'category': False,
   'peft_config': LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1)

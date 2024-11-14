@@ -63,7 +63,7 @@ def model_selection(modeltype: str, modelname: Optional[str]):
     return params
 
 
-def load_model(modeltype: str, params: dict):
+def load_model(modeltype: str, params: dict, device:str='cuda'):
     # Load base model from
     model_name = params['model_name'].split('/')[-1]
     load_path = Path().resolve().joinpath(
@@ -79,11 +79,13 @@ def load_model(modeltype: str, params: dict):
             model = AutoModelForCausalLM.from_pretrained(
                 load_path,
                 torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",)
+                attn_implementation="flash_attention_2",
+                device_map=device)
 
         except ValueError:
             # If no support for flash_attention_2, then use standard implementation
-            model = AutoModelForCausalLM.from_pretrained(params['model_name'])
+            model = AutoModelForCausalLM.from_pretrained(
+                params['model_name'], device_map=device)
 
         except OSError:
             print('No local model found, downloading model from hub')
@@ -92,12 +94,13 @@ def load_model(modeltype: str, params: dict):
                 model = AutoModelForCausalLM.from_pretrained(
                     params['model_name'],
                     torch_dtype=torch.bfloat16,
-                    attn_implementation="flash_attention_2",)
+                    attn_implementation="flash_attention_2",
+                    device_map=device)
 
             except ValueError:
                 # If no support for flash_attention_2, then use standard implementation
                 model = AutoModelForCausalLM.from_pretrained(
-                    params['model_name'])
+                    params['model_name'], device_map=device)
 
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
@@ -110,11 +113,13 @@ def load_model(modeltype: str, params: dict):
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 load_path,
                 torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",)
+                attn_implementation="flash_attention_2",
+                device_map=device)
 
         except ValueError:
             # If no support for flash_attention_2, then use standard implementation
-            model = AutoModelForSeq2SeqLM.from_pretrained(params['model_name'])
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                params['model_name'], device_map=device)
 
         except OSError:
             print('No local model found, downloading model from hub')
@@ -123,12 +128,13 @@ def load_model(modeltype: str, params: dict):
                 model = AutoModelForSeq2SeqLM.from_pretrained(
                     params['model_name'],
                     torch_dtype=torch.bfloat16,
-                    attn_implementation="flash_attention_2",)
+                    attn_implementation="flash_attention_2",
+                    device_map=device)
 
             except ValueError:
                 # If no support for flash_attention_2, then use standard implementation
                 model = AutoModelForSeq2SeqLM.from_pretrained(
-                    params['model_name'])
+                    params['model_name'], device_map=device)
 
             # Save base model for future use
             print('Saving model locally for future usage at: ', load_path)
@@ -148,20 +154,15 @@ def get_model_path(root_dir, load_model_name, version):
     return load_dir
 
 
-def save_prediction(df, save_dir, model_name, version, dataset):
-    # save inference predictions from a model to a local directory
-    file_name = model_name + "_" + version + "_" + dataset + "_" + \
-        get_datetime("%d,%m,%Y--%H,%M") + ".csv"
-    os.makedirs(save_dir, exist_ok=True)
-    df.to_csv(save_dir + file_name)
-
-
 def save_model(tokenizer, model, params, save_option=True):
     # save model and tokenizer to a local directory.
+    model_name = params['model_name'].split('/')[-1]
+    save_name = model_name + '-' + get_datetime("%d,%m,%Y--%H,%M")
+    
     save_path = Path().resolve().joinpath(
         params['save_dir'],
         params['training_args'].output_dir,
-        params['model_name'] + '-' + get_datetime("%d,%m,%Y--%H,%M"))
+        save_name)
 
     if save_option:
         tokenizer.save_pretrained(save_path)
