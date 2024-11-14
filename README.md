@@ -44,13 +44,5 @@ CONAN: available at [CONAN - COunter NArratives through Nichesourcing: a Multili
 CrowdCounter: available at [CrowdCounter: A benchmark type-specific multi-target counterspeech dataset](https://github.com/hate-alert/crowdcounter) (CoNLL2024) 
 
 
-```
-cd existing_repo
-git remote add origin https://gitlab.lrz.de/masters-thesis-daryna/counter-sexist-hate-speech.git
-git branch -M main
-git push -uf origin main
-```
-
-
 ***
 
