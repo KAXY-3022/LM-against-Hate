@@ -1,9 +1,12 @@
+import sys
+sys.path.append('.')
 import torch
 import pandas as pd
 import glob
 from pathlib import Path
-from eval_util import evaluation_pipeline, save_results
-from utilities import get_datetime
+from utilities.eval_util import evaluation_pipeline, save_results
+from utilities.utils import get_datetime
+
 
 def main(dataset):
     # set device
@@ -12,10 +15,9 @@ def main(dataset):
             "threshold": 0.95,
             "n-gram": 4,
             "device": device}
-    
+
     # set path
-    pred_dir =  Path().resolve().joinpath('predictions', dataset)
-    print('Reading predictions: ', pred_dir)
+    pred_dir = Path().resolve().joinpath('predictions', dataset)
 
     # read names of all prediction files
     files = glob.glob(str(pred_dir) + "\*.csv")
@@ -25,7 +27,11 @@ def main(dataset):
     infos = []
 
     for f in files:
-        df = pd.read_csv(f)
+        print('Reading predictions: ', pred_dir, f)
+        try:
+            df = pd.read_csv(f, converters={'Target': pd.eval})
+        except pd.errors.UndefinedVariableError:
+            df = pd.read_csv(f)
         df = df.drop("Unnamed: 0", axis=1)
         file_name = f.replace(str(pred_dir), "")
         attr = file_name.replace(".csv", "").split("_")
@@ -35,22 +41,21 @@ def main(dataset):
                 df.loc[idx, "Prediction"] = "None"
 
         info_ = {"Model_Name": attr[0],
-                "Model_Version": attr[1],
-                "Test_Set": attr[2],
-                "Prediction_File": file_name,
-                }
+                 "Model_Version": attr[1],
+                 "Test_Set": attr[2],
+                 "Prediction_File": file_name,
+                 }
 
         dfs.append(df)
         infos.append(info_)
-        
-        
+
     results = evaluation_pipeline(dfs, infos, args)
-    
-    save_name = 'evaluation_' + info_["Test_Set"] + "_" + get_datetime("%d,%m,%Y--%H,%M") + '.csv'
+
+    save_name = 'evaluation_' + info_["Test_Set"] + \
+        "_" + get_datetime("%d,%m,%Y--%H,%M") + '.csv'
     save_dir = Path().resolve().joinpath('evaluation', save_name)
     save_results(save_dir, results)
 
 
-    
 if __name__ == "__main__":
   main(dataset='Base')            # 'Base' 'Sexism' 'Small'

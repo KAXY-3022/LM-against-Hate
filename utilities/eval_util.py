@@ -1,25 +1,24 @@
-from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
-from collections import Counter
+import ast
 import re
-from nltk.util import ngrams
-import tensorflow as tf
+import statistics
+
 import torch
+import tensorflow as tf
 import pandas as pd
 import numpy as np
-from numpy.linalg import norm
 from pathlib import Path
-
 from tqdm import tqdm
 from tqdm.auto import trange
-
-import statistics
-import os
-
+from nltk.util import ngrams
+from numpy.linalg import norm
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
+from sklearn.preprocessing import LabelEncoder
 from sentence_transformers import SentenceTransformer, util
-from transformers import RobertaTokenizer, RobertaForSequenceClassification, AutoModelForSequenceClassification, AutoTokenizer, TFAutoModelForSequenceClassification
+from bertopic import BERTopic
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, TFAutoModelForSequenceClassification
 
-from utilities import cleanup, detokenize
-
+from utilities.utils import cleanup, detokenize
+from param import categories
 
 def evaluation_pipeline(dfs, infos, args):
     # Set up empty stack for storing results
@@ -68,10 +67,6 @@ def evaluation_pipeline(dfs, infos, args):
     # 7. Topic Relevance Score
     topics = compute_topicRelevance_score(dfs, args, infos)
 
-
-
-
-
     # 8. Final Scoring
     for idx, info in enumerate(infos):
         # Prepare data for saving evaluation results
@@ -105,9 +100,7 @@ def evaluation_pipeline(dfs, infos, args):
     return eval_results
 
 
-
-
-def load_classifier_model(model_name:str, device:str, tf:bool=False):
+def load_classifier_model(model_name: str, device: str, tf: bool = False):
     '''
     model_name: str = name on model card, optimally, the locally stored model should have the same name,
     device: str = 'cuda' or 'cpu'
@@ -115,7 +108,7 @@ def load_classifier_model(model_name:str, device:str, tf:bool=False):
 
     # initialize model and tokenizer
     modelPath = Path().resolve().joinpath('models', 'Classifiers', model_name)
-    
+
     if tf:
         try:
             # load local model if exists
@@ -144,7 +137,7 @@ def load_classifier_model(model_name:str, device:str, tf:bool=False):
             # save model locally for future usage
             model.save_pretrained(modelPath)
             tokenizer.save_pretrained(modelPath)
-        
+
     return model, tokenizer
 
 
@@ -163,7 +156,7 @@ def compute_similarity_pipeline(dfs, args, models, task):
     for m_idx, modelname in enumerate(models):
         print('-'*80)
         print("Computing %s Similarity Score with %s ." % (task, modelname))
-        
+
         # initialize model
         modelPath = str(Path().resolve().joinpath(
             'models', 'Classifiers', 'sentence-transformers', modelname))
@@ -196,11 +189,6 @@ def compute_similarity_pipeline(dfs, args, models, task):
     return scores
 
 
-
-
-
-
-
 def compute_similarity_score(model, preds, targets):
     preds_embeddings = model.encode(preds, show_progress_bar=True)
     targets_embeddings = model.encode(targets, show_progress_bar=True)
@@ -212,16 +200,6 @@ def compute_similarity_score(model, preds, targets):
     cosine_average = statistics.fmean(cosine_score)
 
     return cosine_score, cosine_average
-
-
-
-
-
-
-
-
-
-
 
 
 def compute_toxicity_score(dfs, model_path, args, soft=False):
@@ -243,8 +221,9 @@ def compute_toxicity_score(dfs, model_path, args, soft=False):
     print('Calculating toxicity of predictions')
 
     # initialize model and tokenizer
-    model, tokenizer = load_classifier_model(model_name=model_path,device=args['device'])
-    
+    model, tokenizer = load_classifier_model(
+        model_name=model_path, device=args['device'])
+
     scores = []
 
     for df in dfs:
@@ -279,11 +258,10 @@ def compute_cola_score(dfs, args, soft=False):
     # the lower the better
     print('-'*80)
     print('Calculating CoLA Acceptability Stats')
-    
+
     # initialize model and tokenizer
     model, tokenizer = load_classifier_model(
         model_name='textattack/roberta-base-CoLA', device=args['device'])
-    
 
     scores = []
 
@@ -321,11 +299,10 @@ def compute_Offense_Hate_score(dfs, args, soft=False):
 
     print('-'*80)
     print('Calculating Offensive/Hate-Speech Classification')
-    
+
     # initialize model and tokenizer
     model, tokenizer = load_classifier_model(
         model_name="Hate-speech-CNERG/bert-base-uncased-hatexplain", device=args['device'])
-
 
     scores = []
 
@@ -372,7 +349,6 @@ def compute_argument_score(dfs, args, soft=False):
         model_name="tum-nlp/bert-counterspeech-classifier", device=args['device'], tf=True)
 
     # TODO add new model to the pipeline _ chkla/roberta-argument
-    
 
     print('-'*80)
     print('Calculating Argument Type of predictions')
@@ -407,6 +383,8 @@ def compute_argument_score(dfs, args, soft=False):
     return scores
 
 
+
+
 def compute_topicRelevance_score(dfs, args, infos):
     '''
     finetuned on "cardiffnlp-tweet-topic-21-multi"
@@ -423,7 +401,10 @@ def compute_topicRelevance_score(dfs, args, infos):
     print('Calculating Topic of predictions')
 
     def format_multiclass(item):
-        return item.split("/")
+        if isinstance(item, str):
+            return item.split("/")
+        else:
+            return item
 
     def format_multiclass_2(item):
         if item != item:
@@ -440,8 +421,8 @@ def compute_topicRelevance_score(dfs, args, infos):
             df["Target"] = np.where(
                 df["Target"] == "Islamophobia", "MUSLIMS", df["Target"])
             df["Target"] = df["Target"].map(format_multiclass)
-            
-            if df['Target_2']:
+
+            if 'Target_2' in df.columns:
                 df["Target_2"] = df["Target_2"].map(format_multiclass_2)
                 df["Target"] = df["Target"] + df["Target_2"]
 
@@ -449,19 +430,17 @@ def compute_topicRelevance_score(dfs, args, infos):
         for label, idx in model.config.label2id.items():
             types[int(idx)] = label
 
-        tuple_head = []
-        for index, row in df.iterrows():
-            label = []
-            tuple_temp = [row['Prediction']]
+        def transform_row(r):
+            labels = []
             for target in types:
-                if target in row["Target"]:
-                    label.append(1)
+                if target in r['Target']:
+                    labels.append(1)
                 else:
-                    label.append(0)
-            tuple_temp.append(label)
-            tuple_head.append(tuple_temp)
+                    labels.append(0)
+            r['labels'] = labels
+            return r
 
-        df = pd.DataFrame(tuple_head, columns=["Prediction", "labels"])
+        df = df.apply(transform_row, axis=1)
 
         sigmoid = torch.nn.Sigmoid()
 
@@ -574,3 +553,53 @@ def compute_g_score(eval_, infos):
 def save_results(save_dir, eval):
     df = pd.DataFrame(eval)
     df.to_csv(save_dir)
+
+
+
+
+
+
+
+# Unused test codes
+
+def compute_bertopic_score(dfs, args, infos):
+    load_path = Path().resolve().joinpath('models', 'BERTopic_model')
+    topic_model = BERTopic.load(load_path)
+
+    le = LabelEncoder()
+    le.classes_ = np.load(
+        load_path.joinpath('classes.npy'), allow_pickle=True)
+
+    print('-'*80)
+    print('Calculating Topic of predictions with BERTopic')
+
+    scores = []
+
+    for df in dfs:
+        if infos[0]["Test_Set"] == "Sexism":
+            df["Target"] = np.where(df["labels"] == "sexist", "WOMEN", "other")
+
+        results = []
+        bs = args["batch_size"]
+        # prepare the input
+        preds = df["Prediction"].tolist()
+        # Batch Evaluation
+        for i in tqdm(range(0, len(preds), bs)):
+            batch = preds[i:i + bs]
+
+            classes, probs = topic_model.transform(batch)
+            y_preds = le.inverse_transform(classes).tolist()
+
+            def eval(string):
+                return ast.literal_eval(string)
+
+            # y_preds = list(map(eval, y_preds))
+            results = results + y_preds
+
+        labels = df["Target"].tolist()
+        count = 0
+        for i in range(len(labels)):
+            print(labels[i], results[i])
+            if results[i] in labels[i]:
+                count += 1
+        print(count/len(labels))

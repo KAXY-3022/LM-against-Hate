@@ -5,6 +5,15 @@ from peft import LoraConfig, TaskType
 # selected demographics
 categories = ["MIGRANTS", "POC", "LGBT+", "MUSLIMS", "WOMEN", "JEWS", "other", "DISABLED"]
 
+# some path to use
+data_path = Path().resolve().joinpath('data', 'Custom')
+model_path = Path().resolve().joinpath('models')
+
+# system prompt
+system_message = {
+    'role': 'system',
+    'content': 'You are a UN agent who focuses on fighting online hate speech. Your task is to write responses, so-called counter speech, to online hate speech targeting different demographics. The responses should not be offensive, hateful, or toxic. The responses should actively fight against the hateful messages and bring counterarguments to the table. The aim is to bring in positive perspectives, clarify misinformation, and be an active voice for the targeted demographics against hate.'}
+
 def optuna_hp_space(trial):
   return {
       "learning_rate": trial.suggest_float("learning_rate", 1e-6, 1e-4, log=True),
@@ -15,7 +24,7 @@ def optuna_hp_space(trial):
       }
 
 Causal_training_args = TrainingArguments(
-    output_dir=Path().resolve().joinpath('models','Causal'),
+    output_dir=model_path.joinpath('S2S'),
     num_train_epochs=200.0,
     learning_rate=3e-05,
     weight_decay=0.05,
@@ -39,17 +48,17 @@ Causal_training_args = TrainingArguments(
 Causal_params = {
   'model_name': "openai-community/gpt2-medium",
   'save_name': "gpt2-medium_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
-  'val_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_val.csv'),
-  'test_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_test.csv'),
-  'save_dir': Path().resolve().joinpath('models', 'Causal'),
+  'train_dir': data_path.joinpath('CONAN_train.csv'),
+  'val_dir': data_path.joinpath('CONAN_val.csv'),
+  'test_dir': data_path.joinpath('CONAN_test.csv'),
+  'save_dir': model_path.joinpath('Causal'),
   'training_args': Causal_training_args,
   'category': False,
   'peft_config': LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1)
 }
 
 S2S_training_args = Seq2SeqTrainingArguments(
-    output_dir=Path().resolve().joinpath('models', 'S2S'),
+    output_dir=model_path.joinpath('S2S'),
     num_train_epochs=200.0,
     learning_rate=3e-5,
     gradient_accumulation_steps=4,
@@ -72,10 +81,10 @@ S2S_training_args = Seq2SeqTrainingArguments(
 S2S_params = {
   'model_name': 'facebook/bart-large',
   'save_name': "bart-large_againstHate",
-  'train_dir': Path().resolve().joinpath('data', 'Custom', 'CONAN_train.csv'),
-  'val_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_val.csv'),
-  'test_dir': Path().resolve().joinpath('data', 'Custom', 'Generator_test.csv'),
-  'save_dir': Path().resolve().joinpath('models', 'S2S'),
+  'train_dir': data_path.joinpath('CONAN_train.csv'),
+  'val_dir': data_path.joinpath('CONAN_val.csv'),
+  'test_dir': data_path.joinpath('CONAN_test.csv'),
+  'save_dir': model_path.joinpath('S2S'),
   'training_args': S2S_training_args,
   'category': False,
   'peft_config': LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1)

@@ -3,14 +3,14 @@ import gc
 import torch
 import numpy as np
 import pandas as pd
-from multiprocessing import Pool
+from pynvml import *
+from pathlib import Path
 from datetime import datetime
 from typing import Optional
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer
-from pathlib import Path
-from pynvml import *
-from peft import get_peft_model
+from peft import get_peft_model, AutoPeftModelForCausalLM
 
+from multiprocessing import Pool
 from param import Causal_params, S2S_params
 
 
@@ -55,7 +55,8 @@ def model_selection(modeltype: str, modelname: Optional[str]):
         params = S2S_params
     elif modeltype == 'Causal':
         params = Causal_params
-
+    else:
+        raise ValueError('no parameters for given modeltype {modeltype} found')
     if modelname:
         params['model_name'] = modelname
         params['save_name'] = modelname.split('/')[-1] + '_againstHate'
@@ -63,19 +64,17 @@ def model_selection(modeltype: str, modelname: Optional[str]):
     return params
 
 
-def load_model(modeltype: str, params: dict, device:str='cuda'):
+def load_model(modeltype: str, params: dict, device: str = 'cuda'):
     # Load base model from
     model_name = params['model_name'].split('/')[-1]
-    load_path = Path().resolve().joinpath(
-        params['save_dir'],
-        params['training_args'].output_dir,
-        model_name)
-    
+    load_path = params['save_dir'].joinpath(model_name)
+
     print('Loading local model from: ', load_path)
 
     if modeltype == 'Causal':
         try:
-            tokenizer = AutoTokenizer.from_pretrained(load_path)
+            tokenizer = AutoTokenizer.from_pretrained(
+                load_path, padding_side='left')
             model = AutoModelForCausalLM.from_pretrained(
                 load_path,
                 torch_dtype=torch.bfloat16,
@@ -141,24 +140,74 @@ def load_model(modeltype: str, params: dict, device:str='cuda'):
             model.save_pretrained(load_path)
             tokenizer.save_pretrained(load_path)
 
+    if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        model.resize_token_embeddings(len(tokenizer))
     model.enable_input_require_grads()
     model = get_peft_model(model, params['peft_config'])
     return tokenizer, model
 
 
-def get_model_path(root_dir, load_model_name, version):
-    # construct the path to a given model by the model name and it's version (date_time when created)
-    load_dir = os.path.join(root_dir, "models/")
-    load_dir = os.path.join(load_dir, load_model_name)
-    load_dir = os.path.join(load_dir, version)
-    return load_dir
+def load_local_model(params: dict, device: str = 'cuda'):
+    # Load base model from
+    load_path = Path().resolve().joinpath(
+        'models', params['model_type'], params['model_name'])
+
+    print('Loading local model from: ', load_path)
+
+    if params['model_type'] == 'Causal':
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                load_path, padding_side='left')
+            model = AutoModelForCausalLM.from_pretrained(
+                load_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                device_map=device)
+
+        except RuntimeError:
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                load_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                device_map=device)
+
+        except ValueError:
+            # If no support for flash_attention_2, then use standard implementation
+            model = AutoModelForCausalLM.from_pretrained(
+                params['model_name'], device_map=device)
+
+        except OSError:
+            raise OSError('No local model found')
+
+    elif params['model_type'] == 'S2S':
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(load_path)
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                load_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                device_map=device)
+
+        except ValueError:
+            # If no support for flash_attention_2, then use standard implementation
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                params['model_name'], device_map=device)
+
+        except OSError:
+            raise OSError('No local model found')
+
+    return tokenizer, model
 
 
-def save_model(tokenizer, model, params, save_option=True):
+def save_model(tokenizer, model, params, save_option=True, targetawareness:bool=False):
     # save model and tokenizer to a local directory.
     model_name = params['model_name'].split('/')[-1]
-    save_name = model_name + '-' + get_datetime("%d,%m,%Y--%H,%M")
-    
+    if targetawareness:
+        save_name = model_name + 'category' + '_' + get_datetime("%d,%m,%Y--%H,%M")
+    else:
+        save_name = model_name + '_' + get_datetime("%d,%m,%Y--%H,%M")
+        
     save_path = Path().resolve().joinpath(
         params['save_dir'],
         params['training_args'].output_dir,
@@ -170,8 +219,8 @@ def save_model(tokenizer, model, params, save_option=True):
         print("Model saved at: ", save_path)
     else:
         print("Save option is currently disabled. If you wish to keep the current model for future usage, please turn on the saving option by setting save_option=True")
-        
-        
+
+
 def print_gpu_utilization():
     nvmlInit()
     handle = nvmlDeviceGetHandleByIndex(0)
