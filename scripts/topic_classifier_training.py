@@ -9,37 +9,33 @@ from pathlib import Path
 from transformers import EvalPrediction, AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 
-from param import categories
-from utilities import get_datetime
+from param import categories, data_path_new, model_path
+from utilities.utils import get_datetime, add_pad_token
 
 def main(model_name):
     # set data paths
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model_dir = Path().resolve().joinpath('models', 'Classifiers')
-    train_dir = Path().resolve().joinpath('data', 'Custom', 'Topic-classification_train.csv')
-    test_dir = Path().resolve().joinpath('data', 'Custom', 'Topic-classification_test.csv')
+    model_dir = model_path.joinpath('Classifiers')
+    train_dir = data_path_new.joinpath('Classifier_train.csv')
+    val_dir = data_path_new.joinpath('Classifier_val.csv')
 
-    df_raw = pd.read_csv(train_dir)
-    df_new = df_raw.copy()
+    df_train = pd.read_csv(train_dir)
+    df_val = pd.read_csv(val_dir)
 
-    df_new = df_new.dropna()
-    df_new = df_new[categories]
+    df_train_labels = df_train.dropna()
+    df_train_labels = df_train_labels[categories]
+    print(df_train_labels)
     for cat in categories:
-        df_new[cat] = df_new[cat].astype(float)
+        df_train_labels[cat] = df_train_labels[cat].astype(float)
 
-    ds = Dataset.from_pandas(df_new)
-    dataset = ds.train_test_split(test_size=0.2)
+    dataset = Dataset.from_pandas(df_train_labels)
     dataset = dataset.remove_columns("__index_level_0__")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
     # create labels column
-    cols = dataset["train"].column_names
-    dataset = dataset.map(lambda x : {"labels": [x[c] for c in cols if c != "text"]})
+    cols = dataset.column_names
+    dataset = dataset.map(
+        lambda x: {"labels": [x[c] for c in cols if c != "text"]})
 
     def preprocess_function(examples):
         return tokenizer(
@@ -48,19 +44,14 @@ def main(model_name):
             max_length=512,
             padding=True,
             return_tensors='pt')
-
-
-    cols=dataset["train"].column_names
+        
+    cols = dataset.column_names
     cols.remove("labels")
     tokenized_ds = dataset.map(
         preprocess_function,
         batched=True,
         remove_columns=cols
-        )
-
-    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-
-    # create label2id, id2label dicts for nice outputs for the model
+    )
     
     num_labels = len(categories)
     label2id, id2label = dict(), dict()
@@ -68,6 +59,9 @@ def main(model_name):
         label2id[label] = str(i)
         id2label[str(i)] = label
 
+
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name,
         num_labels=num_labels,
@@ -75,6 +69,13 @@ def main(model_name):
         label2id=label2id,
         ignore_mismatched_sizes=True,
     )
+    tokenizer, model = add_pad_token(tokenizer, model)
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+    # create label2id, id2label dicts for nice outputs for the model
+    
+
+
 
 
 

@@ -7,6 +7,7 @@ categories = ["MIGRANTS", "POC", "LGBT+", "MUSLIMS", "WOMEN", "JEWS", "other", "
 
 # some path to use
 data_path = Path().resolve().joinpath('data', 'Custom')
+data_path_new = Path().resolve().joinpath('data', 'Custom_New')
 model_path = Path().resolve().joinpath('models')
 
 # system prompt
@@ -24,7 +25,7 @@ def optuna_hp_space(trial):
       }
 
 Causal_training_args = TrainingArguments(
-    output_dir=model_path.joinpath('S2S'),
+    output_dir=model_path.joinpath('Causal'),
     num_train_epochs=200.0,
     learning_rate=3e-05,
     weight_decay=0.05,
