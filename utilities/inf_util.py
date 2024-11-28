@@ -10,8 +10,8 @@ from scipy.special import expit
 from tqdm.auto import tqdm
 
 from utilities.utils import get_datetime, cleanup, detokenize, parallel_process
-from utilities.data_util import tokenize_labels
-from param import data_path, model_path
+from utilities.data_util import tokenize_labels, prepare_input_causal_inf, prepare_input_noncausal
+from param import data_path, model_path, system_message
 
 
 def load_dataset(ds_name: str, model_type: str, gen_tokenizer, target_awareness: bool = False):
@@ -24,29 +24,26 @@ def load_dataset(ds_name: str, model_type: str, gen_tokenizer, target_awareness:
     if ds_name == 'Base':
         # For base comparison
         file_name = 'CONAN_test.csv'
-        
+
     elif ds_name == 'Small':
         # For comparison with ChatGPT
         file_name = 'T8-S10.csv'
-        
+
     elif ds_name == 'Sexism':
         # For final comparison, sexism only test set
         file_name = 'EDOS_sexist.csv'
 
     load_path = data_path.joinpath(file_name)
-    
+
     print('loading data from ', load_path)
-    df_raw = pd.read_csv(load_path)
-    if ds_name == 'Sexism':
-        df_raw["Target"] = df_raw["Target"].map(
-            lambda x: "WOMEN" if x == "sexist" else "other")
+    df_raw = pd.read_csv(load_path, converters={'Target': pd.eval})
 
     df, ds = prepare_input(
         df=df_raw,
         gen_tokenizer=gen_tokenizer,
         model_type=model_type,
         target_awareness=target_awareness)
-    
+
     return df, ds
 
 
@@ -54,8 +51,8 @@ def prepare_input(df, gen_tokenizer, model_type: str, target_awareness: bool = F
     if target_awareness:
         # set up classifier model for generating target demographic when none available
         load_path = model_path.joinpath(
-            'Classifiers', 
-            'cardiffnlp-tweet-topic-21-multi-09,06,2023--21,45')
+            'Classifiers',
+            'cardiffnlp-tweet-topic-21-multi_09,06,2023--21,45')
         class_tokenizer = AutoTokenizer.from_pretrained(load_path)
         if class_tokenizer.pad_token is None:
             class_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -64,7 +61,7 @@ def prepare_input(df, gen_tokenizer, model_type: str, target_awareness: bool = F
             device_map='cuda')
 
         # set up class mapping
-        class_mapping = class_model.config.id2label 
+        class_mapping = class_model.config.id2label
 
         def generate_label(r):
             '''
@@ -84,51 +81,44 @@ def prepare_input(df, gen_tokenizer, model_type: str, target_awareness: bool = F
                     if predictions[i]:
                         labels.append(class_mapping[i])
 
-                r['Label'] = labels
-            else:
-                r['Label'] = r['Target']
+                r['Target'] = labels
             return r
+
         df = df.apply(generate_label, axis=1)
+        
         # tokenize target demographics for prompting <CLASS-1><CLASS-2>
-        df = tokenize_labels(df, column_name='Label')
+        df = tokenize_labels(df, column_name='Target')
 
     if gen_tokenizer.chat_template is not None:
         # if model is instruction tuned, preprocess input with chat_template
-        system_message = {'role': 'system',
-                          'content': 'You are a UN agent who focuses on fighting online hate speech. Your task is to write responses, so-called counter speech, to online hate speech targeting different demographics. The responses should not be offensive, hateful, or toxic. The responses should actively fight against the hateful messages and bring counterarguments to the table. The aim is to bring in positive perspectives, clarify misinformation, and be an active voice for the targeted demographics against hate.'}
-        if target_awareness:
-            # if category tokens are active, add category tokens at beginning of text
-            df["text"] = df["Label"] + df['Hate_Speech']
-        else:
-            df["text"] = df['Hate_Speech']
-        
+        df = prepare_input_noncausal(df=df, category=target_awareness)
+
         def format_chat(r):
             r['chat'] = [system_message,
                          {'role': 'user', 'content': r['text']}]
             return r
-        
+
         df = df.apply(format_chat, axis=1)
         ds = Dataset.from_pandas(df)
         ds = ds.map(
-            lambda x: {"input": gen_tokenizer.apply_chat_template(
+            lambda x: {"formated_chat": gen_tokenizer.apply_chat_template(
                 x["chat"], tokenize=False, add_generation_prompt=True)},
             desc="applying chat_template to dataset")
 
+        def preprocess_function(examples):
+            return gen_tokenizer(examples["formated_chat"], truncation=True, add_special_tokens=False)
+        ds = ds.map(
+            preprocess_function,
+            batched=True,
+            desc="tokenzing dataset")
+
     # Concatenate inputs for diffrent model tpyes
     elif model_type == 'Causal':
-        if target_awareness:
-            df["input"] = df["Label"] + "Hate-speech: " + \
-                df['Hate_Speech'] + " " + "Counter-speech: "
-        else:
-            df["input"] = "Hate-speech: " + \
-                df['Hate_Speech'] + " " + "Counter-speech: "
+        df = prepare_input_causal_inf(df=df, category=target_awareness)
         ds = Dataset.from_pandas(df)
 
     elif model_type == 'S2S':
-        if target_awareness:
-            df["input"] = df["Label"] + df['Hate_Speech']
-        else:
-            df["input"] = df['Hate_Speech']
+        df = prepare_input_noncausal(df=df, category=target_awareness)
         ds = Dataset.from_pandas(df)
 
     # Default
@@ -145,12 +135,12 @@ def predict(ds, model, tokenizer, batchsize=64, max_gen_len=128, model_type=None
         add_special_tokens = False
     else:
         add_special_tokens = True
-        
-    
-    for i in tqdm(range(0, len(ds), batchsize)):
+
+    for i in tqdm(range(0, len(ds), batchsize), desc="Predicting..."):
         cleanup()
-        batch = ds["input"][i: i+batchsize]
-        inputs = tokenizer(batch, return_tensors="pt", padding=True, add_special_tokens=add_special_tokens)
+        batch = ds["text"][i: i+batchsize]
+        inputs = tokenizer(batch, return_tensors="pt",
+                           padding=True, add_special_tokens=add_special_tokens)
 
         if model_type == "Causal":
             max_length = len(inputs['input_ids'][0]) + \
@@ -206,10 +196,10 @@ def post_processing(df, model_type, chat_template):
     # clean and format the output, remove special characters and replacing emojis/URLs with $EMOJI$/$URL$
     df["Prediction"] = df['Prediction'].map(clean_text)
     cleanup()
-    
+
     nltk.download('punkt')
     nltk.download('punkt_tab')
-    
+
     # remove incomplete sentences at the end using nltk sentencizing
     def remove_incomplete(text):
         # remove incomplete sentences at the end using nltk sentencizing

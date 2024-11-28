@@ -28,20 +28,20 @@ def main():
     data_dir = Path().resolve().joinpath('predictions', 'Sexism')
     model_dir = model_path.joinpath('Causal', 'Llama-3.2-3B-Instruct')
 
-    gpt2_dir = data_dir.joinpath(
-        'gpt2-medium_16,05,2023-21,09_Sexism_06,06,2023--21,33.csv')
-    category_dir = data_dir.joinpath(
-        'gpt2-medium-category_11,06,2023--00,31_Sexism_11,06,2023--19,44.csv')
+    ori_dir = data_dir.joinpath(
+        'Llama-3.2-1B-Instruct_16,11,2024--00,22_Sexism_26,11,2024--20,35.csv')
+    cat_dir = data_dir.joinpath(
+        'Llama-3.2-1B-Instruct-category_17,11,2024--09,39_Sexism_26,11,2024--20,57.csv')
 
     print('loading predictions')
-    df_gpt2 = pd.read_csv(gpt2_dir).fillna('')
-    df_cat = pd.read_csv(category_dir).fillna('')
+    df_ori = pd.read_csv(ori_dir).fillna('')
+    df_cat = pd.read_csv(cat_dir).fillna('')
 
-    hate_speech = df_gpt2['Hate_Speech']
-    gpt_counter = df_gpt2['Prediction']
+    hate_speech = df_ori['Hate_Speech']
+    ori_counter = df_ori['Prediction']
     cat_counter = df_cat['Prediction']
 
-    docs = cat_counter
+    docs = ori_counter
 
     device = f'cuda:{cuda.current_device()}' if cuda.is_available() else 'cpu'
 
@@ -111,9 +111,8 @@ def main():
     prompt = system_prompt + example_prompt + main_prompt
 
     print('loading embedding model')
-    # load model with tokenizer
     embedding_model = SentenceTransformer(str(model_path.joinpath(
-        'Classifiers', 'sentence-transformers', 'stella_en_1.5B_v5'))).cuda()
+        'Classifiers', 'sentence-transformers', 'stella_en_400M_v5')),trust_remote_code=True).cuda()
 
     print('encoding predictions')
     embeddings = embedding_model.encode(
@@ -177,9 +176,23 @@ def main():
         "\n")[0] for label in topic_model.get_topics(full=True)["Llama3"].values()]
     topic_model.set_topic_labels(llama3_labels)
 
-    topic_model.visualize_documents(docs, reduced_embeddings=reduced_embeddings,
-                                    hide_annotations=True, hide_document_hover=False, custom_labels=True)
+    fig = topic_model.visualize_documents(docs,
+                                          reduced_embeddings=reduced_embeddings,
+                                          hide_annotations=True,
+                                          hide_document_hover=False,
+                                          custom_labels=True,
+                                          width=1200,
+                                          height=1200)
 
+    fig.show()
+
+    fig2 = topic_model.visualize_document_datamap(docs,
+                                                  reduced_embeddings=reduced_embeddings,
+                                                  custom_labels=True,
+                                                  width=1200,
+                                                  height=1200)
+    
+    fig2.show()
     '''
     ADVANCED VISUALIZATION
     '''

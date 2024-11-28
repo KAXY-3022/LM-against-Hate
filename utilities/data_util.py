@@ -65,7 +65,7 @@ def create_chat_template(df, tokenizer, datainfo: str):
   return dataset
 
 
-def prepare_input_causal(df, category: bool):
+def prepare_input_causal_train(df, category: bool):
   if category:
     # if category tokens are active, add category tokens at beginning of text
     df["text"] = df["Target"] + "Hate-speech: " + df['Hate_Speech'] + \
@@ -73,6 +73,16 @@ def prepare_input_causal(df, category: bool):
   else:
     df["text"] = "Hate-speech: " + df['Hate_Speech'] + \
         " " + "Counter-speech: " + df["Counter_Speech"]
+  return df
+
+
+def prepare_input_causal_inf(df, category: bool):
+  if category:
+    # if category tokens are active, add category tokens at beginning of text
+    df["text"] = df["Target"] + "Hate-speech: " + \
+        df['Hate_Speech'] + " " + "Counter-speech: "
+  else:
+    df["text"] = "Hate-speech: " + df['Hate_Speech'] + " " + "Counter-speech: "
   return df
 
 
@@ -99,7 +109,7 @@ def get_tokenized_chat_template(df, category: bool, tokenizer, loginfo: str = ''
   def preprocess_function(examples):
     return tokenizer(examples["formated_chat"], truncation=True, add_special_tokens=False)
 
-  df = prepare_input_causal(df=df, category=category)
+  df = prepare_input_noncausal(df=df, category=category)
   dataset = create_chat_template(
       df=df,
       tokenizer=tokenizer,
@@ -173,8 +183,8 @@ def data_init(modeltype: str, params, tokenizer, model=None, category: bool = Fa
 
   # if no chat template exists, use custom defined templates
   elif modeltype == 'Causal':
-    df_train = prepare_input_causal(df=df_train, category=category)
-    df_val = prepare_input_causal(df=df_val, category=category)
+    df_train = prepare_input_causal_train(df=df_train, category=category)
+    df_val = prepare_input_causal_train(df=df_val, category=category)
 
     train_dataset = get_tokenized_dataset_causal(
         df=df_train,

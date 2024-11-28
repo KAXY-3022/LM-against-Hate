@@ -140,11 +140,16 @@ def load_model(modeltype: str, params: dict, device: str = 'cuda'):
             model.save_pretrained(load_path)
             tokenizer.save_pretrained(load_path)
 
+    tokenizer, model = add_pad_token(tokenizer, model)
+    model.enable_input_require_grads()
+    model = get_peft_model(model, params['peft_config'])
+    return tokenizer, model
+
+
+def add_pad_token(tokenizer, model):
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         model.resize_token_embeddings(len(tokenizer))
-    model.enable_input_require_grads()
-    model = get_peft_model(model, params['peft_config'])
     return tokenizer, model
 
 
@@ -200,14 +205,15 @@ def load_local_model(params: dict, device: str = 'cuda'):
     return tokenizer, model
 
 
-def save_model(tokenizer, model, params, save_option=True, targetawareness:bool=False):
+def save_model(tokenizer, model, params, save_option=True, targetawareness: bool = False):
     # save model and tokenizer to a local directory.
     model_name = params['model_name'].split('/')[-1]
     if targetawareness:
-        save_name = model_name + 'category' + '_' + get_datetime("%d,%m,%Y--%H,%M")
+        save_name = model_name + '-category' + \
+            '_' + get_datetime("%d,%m,%Y--%H,%M")
     else:
         save_name = model_name + '_' + get_datetime("%d,%m,%Y--%H,%M")
-        
+
     save_path = Path().resolve().joinpath(
         params['save_dir'],
         params['training_args'].output_dir,

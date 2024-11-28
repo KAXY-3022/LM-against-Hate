@@ -96,15 +96,15 @@ def main(modeltype: str, modelname: str = None, category: bool = False):
         data_collator=data_collator,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=5)])
 
-    trainer.train()
+    trainer.train(resume_from_checkpoint=False)
     save_model(tokenizer, model, params, save_option=True, targetawareness=params['category'])
 
 
 if __name__ == "__main__":
-    main(modeltype='Causal',                       # Causal for GPT, S2S for BART
+    main(modeltype='S2S',                       # Causal for GPT, S2S for BART
          # specify base model if wanted, default is set in param
-         modelname='meta-llama/Llama-3.2-3B-Instruct',
-         category=True)
+         modelname='google/flan-t5-large',
+         category=False)
 
     # openai-community/gpt2-medium          Causal
     # openai-community/gpt2-xl              Causal
