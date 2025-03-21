@@ -3,8 +3,8 @@ import preprocessor as p
 import nltk
 from tqdm.auto import tqdm
 
-from utilities.misc import get_datetime, detokenize
-from utilities.cleanup import cleanup_resources
+from lm_against_hate.utilities.misc import get_datetime, detokenize
+from lm_against_hate.utilities.cleanup import cleanup_resources
 
 
 def predict(ds, model, tokenizer, batchsize=64, max_gen_len=128, model_type=None, num_beams=3, no_repeat_ngram_size=3, num_return_sequences=1):
@@ -53,6 +53,14 @@ def predict(ds, model, tokenizer, batchsize=64, max_gen_len=128, model_type=None
     return outputs
 
 
+def ensure_nltk_resources():
+    resources = ['punkt', 'punkt_tab']
+    for resource in resources:
+        try:
+            nltk.data.find(f'tokenizers/{resource}')
+        except LookupError:
+            nltk.download(resource)
+            
 def post_processing(df, model_type:str, chat_template):
     # remove NaN in predictions if any exists
     df["Prediction"] = df["Prediction"].fillna('')
@@ -73,8 +81,7 @@ def post_processing(df, model_type:str, chat_template):
     df["Prediction"] = df['Prediction'].map(clean_text)
     cleanup_resources()
 
-    nltk.download('punkt')
-    nltk.download('punkt_tab')
+    ensure_nltk_resources()
 
     # remove incomplete sentences at the end using nltk sentencizing
     def remove_incomplete(text):

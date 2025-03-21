@@ -2,10 +2,10 @@ from transformers import TrainingArguments, Seq2SeqTrainingArguments
 from pathlib import Path
 from peft import LoraConfig, TaskType
 import torch
+from accelerate import accelerator
 
 # Check Device Availability
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
 # selected demographics
 categories = ["MIGRANTS", "POC", "LGBT+",
               "MUSLIMS", "WOMEN", "JEWS", "other", "DISABLED"]
@@ -42,19 +42,23 @@ Classifier_params = {
     'training_args': TrainingArguments(
         output_dir=model_path.joinpath('Classifiers'),
         num_train_epochs=200.0,
-        learning_rate=3e-5,
-        weight_decay=0.05,
+        learning_rate=2e-5,
+        weight_decay=0.01,
         warmup_ratio=0.1,
         optim="adamw_bnb_8bit",
         lr_scheduler_type="cosine",
-        eval_strategy="epoch",
-        save_strategy="epoch",
-        save_total_limit=1,
+        eval_strategy='epoch',
+        save_strategy='epoch', 
+        save_total_limit=2,
         load_best_model_at_end=True,
+        metric_for_best_model='eval_loss',
         gradient_accumulation_steps=4,
         gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={'use_reentrant': False},
-        auto_find_batch_size=True,
+        per_device_train_batch_size=128,
+        max_grad_norm=1.0,
+        fp16=True,
+        group_by_length=True,
+        report_to='none', 
     )
 }
 
@@ -67,27 +71,38 @@ Causal_params = {
     'test_dir': data_path.joinpath('CONAN_test.csv'),
     'save_dir': model_path.joinpath('Causal'),
     'category': False,
-    'peft_config': LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1),
+    'peft_config': LoraConfig(
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        modules_to_save=['embed_token'],
+        target_modules=["self_attn.q_proj", "self_attn.k_proj",
+                        "self_attn.v_proj", "self_attn.o_proj", "embed_token"],
+        task_type="CAUSAL_LM"
+    ),
     'training_args': TrainingArguments(
         output_dir=model_path.joinpath('Causal'),
-        num_train_epochs=200.0,
-        learning_rate=3e-05,
-        weight_decay=0.05,
+        num_train_epochs=100.0,
+        learning_rate=5e-5,
+        weight_decay=0.01,
         warmup_ratio=0.1,
+        bf16=True,
         optim="adamw_bnb_8bit",
         lr_scheduler_type="cosine",
-        eval_strategy="epoch",
-        save_strategy="epoch",
+        eval_strategy='epoch',
+        save_strategy='epoch',
         save_total_limit=1,
         load_best_model_at_end=True,
-        report_to="none",
-        torch_compile=False,
-        gradient_accumulation_steps=4,
+        metric_for_best_model="eval_loss",
+        label_smoothing_factor=0.1,
         gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={'use_reentrant': False},
+        gradient_accumulation_steps=2,
+        max_grad_norm=1.0,
         auto_find_batch_size=True,
-        # per_device_train_batch_size=1,
         logging_dir=Path().resolve().joinpath("logs"),
+        logging_steps=1000,
+        log_level="info",
+        report_to="none",
     ),
 }
 
@@ -101,25 +116,34 @@ S2S_params = {
     'test_dir': data_path.joinpath('CONAN_test.csv'),
     'save_dir': model_path.joinpath('S2S'),
     'category': False,
-    'peft_config': LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.1),
+    'peft_config': LoraConfig(
+        r=4,
+        lora_alpha=16,
+        lora_dropout=0.05,
+        task_type="SEQ_2_SEQ_LM"
+    ),
     'training_args': Seq2SeqTrainingArguments(
         output_dir=model_path.joinpath('S2S'),
-        num_train_epochs=200.0,
-        learning_rate=3e-5,
-        gradient_accumulation_steps=4,
+        num_train_epochs=290,
+        learning_rate=5e-4,
         weight_decay=0.01,
-        warmup_ratio=0.2,
+        warmup_ratio=0.1,
+        max_grad_norm=0.3,
+        bf16=True,
         optim="adamw_bnb_8bit",
         lr_scheduler_type="cosine",
-        eval_strategy="epoch",
-        save_strategy="epoch",
+        eval_strategy='epoch',
+        save_strategy='epoch',
         save_total_limit=1,
-        gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={'use_reentrant': False},
-        tf32=True,
         load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        gradient_checkpointing=True,
+        gradient_accumulation_steps=4,
         auto_find_batch_size=True,
-        # per_device_train_batch_size=1,
         logging_dir=Path().resolve().joinpath("logs"),
+        logging_steps=50,
+        log_level="info",
+        report_to="none",
     ),
 }

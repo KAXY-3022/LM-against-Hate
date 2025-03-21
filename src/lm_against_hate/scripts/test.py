@@ -1,60 +1,88 @@
-from googleapiclient import discovery
-import json
-import httplib2.socks
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-import httplib2
 from pathlib import Path
+import pandas as pd
+from transformers import pipeline
+from tqdm import tqdm
+import statistics
+from lm_against_hate.evaluation.metrics import load_classifiers
+from lm_against_hate.utilities.batch_processing import batchify
+from lm_against_hate.utilities.cleanup import cleanup_resources
+import tensorflow as tf
 
-from ..config.config import model_path
-
-proxy_info = httplib2.ProxyInfo(proxy_type=httplib2.socks.PROXY_TYPE_HTTP, proxy_host='127.0.0.1', proxy_port=7890)
-http = httplib2.Http(timeout=10, proxy_info=proxy_info, disable_ssl_certificate_validation=False)
-
-json_file_path = "./credentials.json"
-with open(json_file_path, "r") as f:
-    credentials = json.load(f)
-    Perspective_API = credentials['Perspective_API']
-    print('loading Perspective API credential: ', Perspective_API)
-
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 print(torch.__version__)
 print(torch.version.cuda)
 print(torch.cuda.is_available())
 print(Path().resolve())
 
+df_test = pd.read_csv('data/CONAN/CONAN.csv')
+df_test = df_test.dropna(subset=['counterSpeech'])
+test_data = df_test['counterSpeech'].tolist()
+print(len(test_data))
 
-if torch.cuda.is_available():
-    device = 'cuda'
-else:
-    device = 'cpu'
+classifier = pipeline('text-classification', model='chkla/roberta-argument', device=device, batch_size=64)
+score = 0
+for out in tqdm(classifier(test_data)):
+    score += 1 if out['label'] == 'ARGUMENT' else 0
+avg_score = score / len(test_data)
+print(f"Average argument score: {avg_score:.4f}")
 
-print('Running Perspective API')
 
-API_KEY = Perspective_API
 
-client = discovery.build(
-    "commentanalyzer",
-    "v1alpha1",
-    developerKey=API_KEY,
-    discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
-    static_discovery=False,
-    http=http
+
+
+
+model, tokenizer = load_classifiers(
+    'ThinkCERCA/counterargument_hugging', tf=True)
+
+print('-'*80)
+print(
+    f'Calculating Counter-Argument score with ThinkCERCA/counterargument_hugging')
+scores = []
+results = []
+for batch in batchify(test_data, 64):
+    inputs = tokenizer(batch, return_tensors="tf", padding=True)
+    logits = model(**inputs).logits
+    probabilities = tf.identity(tf.nn.softmax(logits, -1)[:, 1]).numpy()
+    result = (probabilities > 0.5).astype(int)
+    results.extend([1 - item for item in result])
+
+scores.append(1 - statistics.fmean(results))
+print(f'counter-argument score: {scores}')
+cleanup_resources()
+
+
+model, tokenizer = load_classifiers(
+    "tum-nlp/bert-counterspeech-classifier", tf=True)
+
+print('-'*80)
+print(
+    f'Calculating Counter-Argument score with tum-nlp/bert-counterspeech-classifier')
+scores = []
+results = []
+for batch in batchify(test_data, 64):
+    inputs = tokenizer(batch, return_tensors="tf", padding=True)
+    logits = model(**inputs).logits
+    probabilities = tf.identity(tf.nn.softmax(logits, -1)[:, 1]).numpy()
+    result = (probabilities > 0.5).astype(int)
+    results.extend([1 - item for item in result])
+
+scores.append(1 - statistics.fmean(results))
+print(f'counter-argument score: {scores}')
+cleanup_resources()
+
+
+
+classifier = pipeline(model="facebook/bart-large-mnli",
+                      device=device, batch_size=64)
+score = 0
+outs = classifier(
+    test_data,
+    candidate_labels=["non-counter-argument", "counter-argument"],
 )
-
-analyze_request = {
-    'comment': {'text': "I'm not sure what you're trying to say, but I don't think it's fair to call someone a pig just because they're attractive to men."},
-    'requestedAttributes': {'TOXICITY': {}, 
-                            'IDENTITY_ATTACK': {},
-                            'INSULT': {},
-                            'PROFANITY': {},
-                            'THREAT': {},
-                            'SEXUALLY_EXPLICIT': {}},
-    "languages": ['en']
-}
-
-response = client.comments().analyze(body=analyze_request).execute()
-print(json.dumps(response, indent=2))
+scores = [out['scores'][out['labels'].index('counter-argument')] for out in outs]
+avg_score = sum(scores) / len(scores)
+print(f"Average counter-argument score: {avg_score:.4f}")
 
 print('finish')

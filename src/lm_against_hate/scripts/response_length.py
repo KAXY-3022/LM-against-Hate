@@ -1,11 +1,9 @@
 import pandas as pd
 import glob
-from pathlib import Path
+import statistics
 
-from lm_against_hate.config.eval_config import evaluation_args
 from lm_against_hate.config.config import pred_dir
-from lm_against_hate.evaluation.pipeline import evaluation_pipeline, save_results
-from lm_against_hate.utilities.misc import get_datetime
+from lm_against_hate.evaluation.metrics import compute_response_length
 
 
 def main(datasets):
@@ -31,7 +29,6 @@ def main(datasets):
                 print('Empty data in file: ', f)
                 continue 
             
-            df = df.drop("Unnamed: 0", axis=1)
             file_name = f.replace(str(pred_path), "")
             attr = file_name.replace(".csv", "").split("_")
 
@@ -46,25 +43,20 @@ def main(datasets):
             dfs.append(df)
             infos.append(info_)
 
-        results, results_per_input = evaluation_pipeline(dfs, infos, evaluation_args)
-        
-        print(results_per_input)
+        results, results_per_input = compute_response_length(dfs)
 
-        save_name = f'evaluation_{dataset}_{get_datetime("%d,%m,%Y--%H,%M")}.csv'
-        save_dir = Path().resolve().joinpath('evaluation_results', dataset, save_name)
-        save_results(save_dir, results)
-        for idx, df in enumerate(results_per_input):
-            new_save_name = f'{idx}_{save_name}'
-            new_save_dir = Path().resolve().joinpath(
-                'evaluation_results', dataset, new_save_name)
-            df.to_csv(new_save_dir)
+        for idx, length in enumerate(results):
+            model_name_ = infos[idx]['Model_Name'] + infos[idx]['Model_Version']
+            standard_deviation = statistics.stdev(results_per_input[idx])
+            print(f"Length: {model_name_}: {length}")
+            print(f"Deviat: {model_name_}: {standard_deviation}")
 
 
 if __name__ == "__main__":
   main(datasets=[
-      #'Base', 
+      'Base', 
       'Sexism', 
       'Small',
       #'test',
-      #'human_evaluation'
+      'human_evaluation'
       ])            # 'Base' 'Sexism' 'Small'

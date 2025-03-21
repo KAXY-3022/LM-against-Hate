@@ -1,53 +1,77 @@
-gpt2_medium = {
+GPT2_MEDIUM = {
     "model_type": "Causal",
     "model_name": "gpt2-medium_16,05,2023-21,09",
     "category": False
 }
 
-gpt2_medium_category = {
+GPT2_MEDIUM_CATEGORY = {
     "model_type": "Causal",
     "model_name": "gpt2-medium-category_11,06,2023--00,31",
     "category": True
 }
 
-gpt2_xl = {
+GPT2_XL = {
     "model_type": "Causal",
-    "model_name": "gpt2-xl_07,11,2024--21,00",
+    "model_name": "gpt2-xl",
     "category": False
 }
 
-bart_large = {
+BART_LARGE = {
     "model_type": "S2S",
     "model_name": "bart-large_18,05,2023--19,18",
     "category": False
 }
 
-Llama_32_1B = {
+LLAMA_32_1B = {
     "model_type": "Causal",
-    "model_name": "Llama-3.2-1B-Instruct_16,11,2024--00,22",
+    "model_name": "Llama-3.2-1B-Instruct",
     "category": False
 }
-
-Llama_32_1B_category = {
+LLAMA_32_1B_ = {
     "model_type": "Causal",
-    "model_name": "Llama-3.2-1B-Instruct-category_17,11,2024--09,39",
+    "model_name": "Llama-3.2-1B-Instruct_againstHate_04,12,2024--08,08",
+    "category": False
+}
+LLAMA_32_1B_CATEGORY = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-1B-Instruct_againstHate-category_05,12,2024--07,12",
+    "category": True
+}
+LLAMA_32_1B_CATEGORY_2 = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-1B-Instruct_againstHate-category_12,02,2025--12,23",
+    "category": True
+}
+LLAMA_32_3B = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-3B-Instruct",
+    "category": False
+}
+LLAMA_32_3B_ = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-3B-Instruct_againstHate_15,12,2024--03,00",
+    "category": False
+}
+LLAMA_32_3B_CATEGORY = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-3B-Instruct_againstHate-category_06,12,2024--04,09",
+    "category": True
+}
+LLAMA_32_3B_CATEGORY2 = {
+    "model_type": "Causal",
+    "model_name": "Llama-3.2-3B-Instruct_againstHate-category_18,12,2024--04,03",
+    "category": True
+}
+FLAN_T5_XL_CATEGORY = {
+    "model_type": "S2S",
+    "model_name": 'flan-t5-xl-category_02,12,2024--07,33',
     "category": True
 }
 
-Llama_32_3B = {
-    "model_type": "Causal",
-    "model_name": "Llama-3.2-3B-Instruct_26,11,2024--00,57",
-    "category": False
-}
-
-Llama_32_3B_category = {
-    "model_type": "Causal",
-    "model_name": "Llama-3.2-3B-Instruct-category_22,11,2024--01,23",
-    "category": True
-}
+tester = { 
+          'model_type': 'Causal',
+          'model_name': 'Llama-3.2-1B-Instruct_againstHate-category_13,02,2025--08,20',
+          'category': True}
 
 # list of models to do inference on
-INFERENCE_MODELS = [Llama_32_1B,
-                    Llama_32_1B_category,
-                    Llama_32_3B,
-                    Llama_32_3B_category]
+INFERENCE_MODELS = [tester]

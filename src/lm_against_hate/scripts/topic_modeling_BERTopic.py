@@ -21,18 +21,18 @@ from sentence_transformers import SentenceTransformer
 from torch import bfloat16, cuda
 import pandas as pd
 
-from ..config.config import model_path
+from lm_against_hate.config.config import model_path, pred_dir
 
 
 def main():
     # set data paths
-    data_dir = Path().resolve().joinpath('predictions', 'Sexism')
+    data_dir = pred_dir.joinpath('Sexism')
     model_dir = model_path.joinpath('Causal', 'Llama-3.2-3B-Instruct')
 
     ori_dir = data_dir.joinpath(
-        'gpt2-medium_16,05,2023-21,09_Sexism_06,06,2023--21,33.csv')
+        'Llama-3.2-1B-Instruct_Sexism_05,01,2025--11,19.csv')
     cat_dir = data_dir.joinpath(
-        'gpt2-medium-category_11,06,2023--00,31_Sexism_11,06,2023--19,44.csv')
+        'Llama-3.2-3B-Instruct_againstHate-category_06,12,2024--04,09_Sexism_05,01,2025--16,11.csv')
 
     print('loading predictions')
     df_ori = pd.read_csv(ori_dir).fillna('')
@@ -50,7 +50,7 @@ def main():
     ori_concat = df_ori['concat']
     cat_concat = df_cat['concat']
     
-    docs = ori_concat
+    docs = cat_concat
 
     device = f'cuda:{cuda.current_device()}' if cuda.is_available() else 'cpu'
 

@@ -1,3 +1,4 @@
+import warnings
 import sys
 sys.path.append('.')
 import pandas as pd
@@ -5,10 +6,10 @@ from tqdm import tqdm
 from transformers import DataCollatorForLanguageModeling, DataCollatorForSeq2Seq, DataCollatorWithPadding
 from datasets import Dataset, DatasetDict
 from scipy.special import expit
-import warnings
+from tf_keras.utils import to_categorical
 
-from ..config.config import system_message, categories
-from ..utilities.model_loader import load_classifiers
+from lm_against_hate.config.config import system_message, categories
+from lm_against_hate.utilities.model_loader import load_classifiers, load_model, model_selection
 
 
 class Dataloader:
@@ -69,11 +70,12 @@ class Dataloader:
         """
         eval_mode = self.get_status()
         if eval_mode and self.include_category:
-            if self.classifier is None:
-                warnings.warn('No classifier is loaded, skipping label generation. Provide a classifier model to the dataloader before re-loading the dataset to perform correct label generation if required.')
-            else:
+            if hasattr(self, 'classifier'):
                 # set up class mapping
                 df = self._generate_labels(df=df)
+            else:
+                warnings.warn('No classifier is loaded, skipping label generation. Provide a classifier model to the dataloader before re-loading the dataset to perform correct label generation if required.')
+
                 
         def transform_row(row):
             if not isinstance(row[column_name], list):
@@ -249,6 +251,7 @@ class CTDataLoader(Dataloader):
         else:
             def construct_text(row):
                 row['text'] = row['Hate_Speech']
+                return row
 
         for dataset_name, df in self.df.items():
             tqdm.pandas(desc=f"Formatting prompt: {dataset_name}")
@@ -268,31 +271,36 @@ class CTDataLoader(Dataloader):
 
         if eval_mode:
             def construct_chat(row):
-                return [system_message, {'role': 'user', 'content': row['text']}]
+                return [
+                    system_message,
+                    {'role': 'user', 'content': row['text']},
+                    {'role': 'assistant', 'content': ''} 
+                ]
         else:
             def construct_chat(row):
-                return [system_message,
-                        {'role': 'user', 'content': row['text']},
-                        {'role': 'assistant', 'content': row['Counter_Speech']}]
+                return [
+                    system_message,
+                    {'role': 'user', 'content': row['text']},
+                    {'role': 'assistant', 'content': row['Counter_Speech']}
+                ]
 
         tqdm.pandas(desc=f'Formatting chat for {dataset_name} dataset')
-        df["chat"] = df.progress_apply(
-            lambda row: construct_chat(row), axis=1)
+        df["chat"] = df.progress_apply(construct_chat, axis=1)
 
         ds = Dataset.from_dict({"chat": df["chat"].tolist()})
 
         return ds.map(
             lambda x: {
-                "formatted_chat": tokenizer.apply_chat_template(
+                "text": tokenizer.apply_chat_template(
                     x["chat"], tokenize=False, add_generation_prompt=eval_mode)},
             desc=f"Applying chat template to {dataset_name} dataset")
         
     def _tokenize_dataset(self, tokenizer):
         self.ds = self.ds.map(
             lambda x: tokenizer(
-                x["formatted_chat"], truncation=True, add_special_tokens=False),
+                x["text"], truncation=True, add_special_tokens=False),
             batched=True,
-            remove_columns=["chat"],
+            remove_columns=["chat", "text"],
             desc=f"Tokenizing dataset")
 
 class ClassifierDataLoader(Dataloader):
@@ -301,41 +309,86 @@ class ClassifierDataLoader(Dataloader):
     '''
     def __init__(self, param: dict, tokenizer):
         super().__init__(param)
-        self.datacollator = DataCollatorWithPadding(tokenizer=tokenizer)
+        self.datacollator = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors='tf' if self.params['tf'] else 'pt')
+        self.is_binary = self.params['num_labels'] == 2
     
     def _prepare_input(self):
-        # Format labels for multi-target classification
-        def construct_labels(row):
+        def process_speech_df(df, speech_type, columns=None, label=None):
+            """Helper function to process hate/counter speech dataframes"""
+            df_processed = df[columns] if columns else df[[speech_type]]
+            df_processed = df_processed[df_processed[speech_type].notna()].rename(columns={speech_type: "text"})
+            if label is not None:
+                df_processed['labels'] = label
+            return df_processed
+        
+        def construct_binary_labels(row):
+            row["labels"] = to_categorical(row['labels'], num_classes=2)
+            return row
+        
+        def construct_multi_labels(row):
             for cat in categories:
                 row[cat] = float(row[cat])
             row["labels"] = [row[c] for c in categories]
             return row
-        
+
         for dataset_name, df in self.df.items():
-            counter_columns = categories + ['Counter_Speech']
-            df_c = df[counter_columns]
-            df_c = df_c[df_c['Counter_Speech'].notna()].rename(columns={
-                "Counter_Speech": "text"})
-
-            hate_columns = categories + ['Hate_Speech']
-            df_h = df[hate_columns]
-            df_h = df_h[df_h['Hate_Speech'].notna()].rename(columns={"Hate_Speech": "text"})
-
-            self.df[dataset_name] = pd.concat([df_h, df_c], ignore_index=True)
-            tqdm.pandas(desc=f"Formatting labels for {dataset_name}")
-            self.df[dataset_name] = self.df[dataset_name].progress_apply(construct_labels, axis=1)
+            print(f"Processing {dataset_name} dataset")
+            
+            # Set up parameters based on classification type
+            if self.is_binary:
+                df_c = process_speech_df(df, 'Counter_Speech', label=1)
+                df_h = process_speech_df(df, 'Hate_Speech', label=0)
+                self.df[dataset_name] = pd.concat([df_h, df_c], sort=False)
+                #tqdm.pandas(desc=f"Formatting labels for {dataset_name}")
+                #self.df[dataset_name] = self.df[dataset_name].progress_apply(
+                #    construct_binary_labels, axis=1)
+            else:
+                counter_columns = categories + ['Counter_Speech']
+                hate_columns = categories + ['Hate_Speech']
+                df_c = process_speech_df(df, 'Counter_Speech', columns=counter_columns)
+                df_h = process_speech_df(df, 'Hate_Speech', columns=hate_columns)
+                
+                self.df[dataset_name] = pd.concat([df_h, df_c],  sort=False)
+                tqdm.pandas(desc=f"Formatting labels for {dataset_name}")
+                self.df[dataset_name] = self.df[dataset_name].progress_apply(construct_multi_labels, axis=1)
    
     def _tokenize_dataset(self, tokenizer):
-        cols = self.ds['train'].column_names
-        cols.remove("labels")
+        if self.is_binary:
+            cols = ['text']
+        else:
+            for dataset_name, ds in self.ds.items():
+                cols = ds.column_names
+                cols.remove("labels")
+                break
+            
         self.ds = self.ds.map(
             lambda x: tokenizer(
-                x["text"], truncation=True, max_length=512, padding=True, return_tensors='pt'),
+                x["text"], 
+                truncation=True, 
+                max_length=512, 
+                padding=True, 
+                return_tensors='tf' if self.params['tf'] else 'pt'),
             batched=True,
             remove_columns=cols)
 
 if __name__ == '__main__':
-    causal_dataloader = CausalDataLoader()
-    s2s_dataloader = S2SDataLoader()
-    ct_dataloader = CTDataLoader()
+    params = model_selection(model_type='S2S', model_name='google/flan-t5-xl')
+    print(params)
     
+    model, tokenizer = load_model(
+        model_type=params['model_type'],
+        params=params,
+        use_8bit=True,
+        use_peft=True,
+        use_flash_attention=True
+    )
+    
+    dataloader = dataloader_init(param=params, tokenizer=tokenizer, model=model, model_type=params['model_type'])
+    dataloader.load_train_data()
+    dataloader.load_val_data()
+    dataloader.prepare_dataset(tokenizer=tokenizer)
+    print(dataloader.df)
+    print(dataloader.ds)
+    print(dataloader.ds['train']['input_ids'])
+    print(dataloader.ds['train']['attention_mask'])
+    print(dataloader.ds['train']['labels'])

@@ -1,33 +1,37 @@
-import torch
-from pathlib import Path
-
-from ..utilities.data_util import dataloader_init, load_custom_dataset
-from ..utilities.cleanup import cleanup_resources
-from ..utilities.model_loader import load_model
-from ..inference.inf_util import predict, post_processing, save_prediction
-from ..config.inf_config import INFERENCE_MODELS
+from lm_against_hate.utilities.data_util import dataloader_init, load_custom_dataset
+from lm_against_hate.utilities.cleanup import cleanup_resources
+from lm_against_hate.utilities.model_loader import load_model, get_inference_model_list, MODEL_CONFIGS
+from lm_against_hate.inference.inf_util import predict, post_processing, save_prediction
+from lm_against_hate.config.config import pred_dir, model_path
+from lm_against_hate.config.inf_config import INFERENCE_MODELS
 
 
-def main(models, datasets):
-    # set data paths
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
+def main(selected_only: bool, datasets: list):    
     # Predict
+    if selected_only:
+        models = INFERENCE_MODELS
+    else:
+        models = get_inference_model_list(model_path)
+        
     for m in models:
-        model, tokenizer = load_model(model_type=m['model_type'], params=m,local_only=True)
+        print('\nInferencing for model ', m['model_name'])
+        model, tokenizer = load_model(model_type=m['model_type'], params=m, local_only=True)
+        
+        dataloader = dataloader_init(param=m , tokenizer=tokenizer, model=model, model_type=m['model_type'])
+        dataloader.eval()
+        dfs = {}
         for dataset_name in datasets:
-            dataloader = dataloader_init(param=m , tokenizer=tokenizer, model=model, model_type=m['model_type'])
-            dataloader.eval()
-            
-            print('Inferencing for dataset ', dataset_name)
             load_custom_dataset(ds_name=dataset_name, dataloader=dataloader)
-            dataloader.prepare_dataset(tokenizer=tokenizer)
-
-            df["Prediction"] = predict(
+            dfs[dataset_name] = dataloader.df[dataset_name]
+            
+        dataloader.prepare_dataset(tokenizer=tokenizer)
+        
+        for dataset_name in datasets:
+            dfs[dataset_name]["Prediction"] = predict(
                 dataloader.ds[dataset_name],
                 model,
                 tokenizer, 
-                batchsize=64, 
+                batchsize=8, 
                 max_gen_len=128,
                 model_type=m["model_type"], 
                 num_beams=3, 
@@ -37,14 +41,14 @@ def main(models, datasets):
             cleanup_resources()
         
             # Post Processing
-            df = post_processing(df=df,
+            dfs[dataset_name] = post_processing(df=dfs[dataset_name],
                                 model_type=m["model_type"],
                                 chat_template=tokenizer.chat_template)
             cleanup_resources() 
 
-            save_dir = Path().resolve().joinpath('predictions', dataset_name)
             # Save predictions
-            save_prediction(df, save_dir, m["model_name"], dataset_name)
+            save_prediction(dfs[dataset_name], pred_dir.joinpath(
+                dataset_name), m["model_name"], dataset_name)
             cleanup_resources()   
 
 
@@ -53,8 +57,8 @@ def main(models, datasets):
 if __name__ == "__main__":
     main(
         # select one or multiple models to do inference
-        models=INFERENCE_MODELS,
-        datasets = ['Base',             # select one or multiple datasets to do inference
+        selected_only = True,
+        datasets = [#'Base',             # select one or multiple datasets to do inference
                     'Small', 
                     'Sexism',
                     ]

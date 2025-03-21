@@ -31,5 +31,4 @@ def load_custom_dataset(ds_name: str, dataloader: CTDataLoader | CausalDataLoade
     file_name = 'EDOS_sexist.csv'
 
   load_path = data_path.joinpath(file_name)
-  print('loading data from ', load_path)
   dataloader.load_custom_data(dataset_name=ds_name, load_dir=load_path)
