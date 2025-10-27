@@ -14,27 +14,7 @@ Tested models:
 
 [CounterGeDi: A controllable approach to generate polite, detoxified and emotional counterspeech](https://github.com/hate-alert/CounterGEDI) (IJCAI 2022)
 
-## Project Structure
 
-```
-│./data
-└──/...            ---------------------------------------- Sources for these datasets -> see Data section
-└──/Custom         ---------------------------------------- combined dataset used for training and testing (pre-processed)
-│
-│./evaluation
-└──/...            ---------------------------------------- Evaluation results
-│
-│./models
-└──/Causal         ---------------------------------------- Causal Generators
-└──/S2S            ---------------------------------------- Sequence-to-Sequence Generators
-└──/Classifiers    ---------------------------------------- Classifier models used for evaluation or label generation
-│
-│./predictions
-└──/...            ---------------------------------------- Model predictions
-│
-│./NoteBooks
-│./.py files
-```
 ## Data
 
 Reddit, Gab: available at [A Benchmark Dataset for Learning to Intervene in Online Hate Speech](https://github.com/jing-qian/A-Benchmark-Dataset-for-Learning-to-Intervene-in-Online-Hate-Speech/tree/master/data) (EMNLP2019) 
